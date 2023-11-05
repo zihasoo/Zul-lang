@@ -45,7 +45,7 @@ void Logger::flush() {
     line_map.clear();
 }
 
-bool Logger::has_error() {
+bool Logger::has_error() const {
     return error_flag;
 }
 

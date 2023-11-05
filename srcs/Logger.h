@@ -19,7 +19,7 @@ public:
 
     void flush();
 
-    bool has_error();
+    bool has_error() const;
 
 private:
     std::string source_name;
