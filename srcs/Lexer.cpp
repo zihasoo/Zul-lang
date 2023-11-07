@@ -20,20 +20,21 @@ Lexer::Lexer(const string &source_name) : source(source_name) {
         cerr << "에러: \"" << source_name << "\" 파일이 존재하지 않습니다.";
         exit(1);
     }
+    advance();
 }
 
-void Lexer::release_error(const initializer_list<string_view> &msg) {
+void Lexer::release_error(const initializer_list<string_view> &msgs) {
     //매모리의 반복 재할당을 막기 위해 initializer_list로 받고 한 번에 할당
     string str;
     int size = 0;
-    for (const auto &x: msg) {
+    for (const auto &x: msgs) {
         size += x.size();
     }
     str.reserve(size);
-    for (const auto &x: msg) {
+    for (const auto &x: msgs) {
         str.append(x);
     }
-    System::logger.log_error(token_start_loc, last_word.size(), str);
+    System::logger.log_error(token_start_loc, last_word.size(),  std::move(str));
     while (!advance()); //다음 줄로 이동
 }
 
@@ -53,7 +54,6 @@ Lexer::Token Lexer::consume_op_bufer() {
             for (int j = 0; j < i; ++j) {
                 op_buffer.pop_front();
             }
-            token_start_loc.second += len;
             return token_map[last_word];
         }
         last_word.pop_back();
@@ -64,20 +64,12 @@ Lexer::Token Lexer::consume_op_bufer() {
     return tok_undefined;
 }
 
-int Lexer::advance_inner_step() {
-    int ret = source.get();
-    cur_loc.second++;
-    cur_line.push_back(ret);
-    return ret;
-}
-
 bool Lexer::advance() {
     last_char = source.get();
     if (last_char == '\n' || last_char == '\r' || last_char == EOF) {
-        System::logger.register_line(cur_loc.first, cur_line);
-        cur_line.clear();
-        cur_loc.first++;
-        cur_loc.second = 0;
+        System::logger.register_line(cur_loc.first, std::move(cur_line));
+        cur_line.reserve(80);
+        cur_loc.second++;
         return true;
     } else {
         cur_line.push_back(last_char);
@@ -87,21 +79,27 @@ bool Lexer::advance() {
             ret = last_char;
         } else if ((last_char & 0xE0) == 0xC0) {
             ret = (last_char & 0x1F) << 6;
-            last_char = advance_inner_step();
+            last_char = source.get();
+            cur_line.push_back(last_char);
             ret |= (last_char & 0x3F);
         } else if ((last_char & 0xF0) == 0xE0) {
             ret = (last_char & 0xF) << 12;
-            last_char = advance_inner_step();
+            last_char = source.get();
+            cur_line.push_back(last_char);
             ret |= (last_char & 0x3F) << 6;
-            last_char = advance_inner_step();
+            last_char = source.get();
+            cur_line.push_back(last_char);
             ret |= (last_char & 0x3F);
         } else if ((last_char & 0xF8) == 0xF0) {
             ret = (last_char & 0x7) << 18;
-            last_char = advance_inner_step();
+            last_char = source.get();
+            cur_line.push_back(last_char);
             ret |= (last_char & 0x3F) << 12;
-            last_char = advance_inner_step();
+            last_char = source.get();
+            cur_line.push_back(last_char);
             ret |= (last_char & 0x3F) << 6;
-            last_char = advance_inner_step();
+            last_char = source.get();
+            cur_line.push_back(last_char);
             ret |= (last_char & 0x3F);
         }
         last_char = ret;
@@ -110,11 +108,36 @@ bool Lexer::advance() {
 }
 
 Lexer::Token Lexer::get_token() {
-    if (!op_buffer.empty())
+    static bool is_line_start = false;
+    if (!op_buffer.empty()) {
+        token_start_loc.second += last_word.size();
         return consume_op_bufer();
+    }
 
     last_word.clear();
-    while (isspace(last_char)) advance();
+    token_start_loc = cur_loc;
+    if (last_char == '\n') {
+        is_line_start = true;
+        cur_loc.first++;
+        cur_loc.second = 0;
+        last_word.push_back(last_char);
+        advance();
+        return tok_newline;
+    }
+    if (is_line_start) {
+        while (last_char == ' ') {
+            last_word.push_back(last_char);
+            if (last_word == u"    ") {
+                advance();
+                return tok_indent;
+            }
+            advance();
+        }
+        is_line_start = false;
+    }
+    else {
+        while (isspace(last_char)) advance();
+    }
 
     token_start_loc = cur_loc;
     if (iskor(last_char)) {
@@ -160,11 +183,10 @@ Lexer::Token Lexer::get_token() {
         return tok_eof;
     }
 
-    while (!isspace(last_char) && !iskor(last_char) && !isalnum(last_char)) {
+    while (!isspace(last_char) && !iskor(last_char) && !isalnum(last_char) && last_char != EOF) {
         op_buffer.push_back(last_char);
         advance();
     }
-
     return consume_op_bufer();
 }
 
@@ -176,7 +198,7 @@ pair<int, int> Lexer::get_cur_loc() {
     return cur_loc;
 }
 
-pair<int, int> Lexer::get_token_loc() {
+pair<int, int> Lexer::get_token_start_loc() {
     return token_start_loc;
 }
 
@@ -208,6 +230,10 @@ string Lexer::token_to_string(Token token) {
             return "tok_string";
         case tok_eng:
             return "tok_eng";
+        case tok_indent:
+            return "tok_indent";
+        case tok_newline:
+            return "tok_newline";
         case tok_comma:
             return "tok_comma";
         case tok_colon:

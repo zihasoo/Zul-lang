@@ -11,11 +11,11 @@ int main(int argc, char *argv[]) {
     Lexer lexer(System::source_name);
 
     Lexer::Token tok;
-    while (tok != Lexer::tok_eof) {
+    while (true) {
         tok = lexer.get_token();
-        cout << Lexer::token_to_string(tok) << "\n";
-        //System::logger.log_error(lexer.get_token_loc(), max(1, lexer.get_cur_loc().second - lexer.get_token_loc().second), "");
+        if (tok == Lexer::tok_eof)
+            break;
+        System::logger.log_error(lexer.get_token_start_loc(), lexer.get_word().size(), Lexer::token_to_string(tok));
     }
-    //System::logger.flush();
     return 0;
 }

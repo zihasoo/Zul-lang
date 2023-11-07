@@ -5,33 +5,56 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <queue>
+#include <string_view>
 
 class Logger {
 public:
+    struct LogInfo {
+        int row, col, word_size;
+        std::string msg;
+
+        LogInfo() = default;
+
+        LogInfo(std::pair<int, int> loc, int word_size, std::string &&msg)
+                : row(loc.first), col(loc.second), word_size(word_size), msg(std::move(msg)) {}
+
+        bool operator>(const LogInfo &other) const {
+            if (row == other.row) return col > other.col;
+            return row > other.row;
+        }
+    };
+
     Logger();
 
-    void set_source_name(const std::string& name);
+    ~Logger();
 
-    void log_error(std::pair<int, int> loc, int word_size, const std::string &msg);
+    void set_source_name(const std::string &name);
 
-    void register_line(int line_num, const std::string &line);
+    void log_error(std::pair<int, int> loc, int word_size, std::string &&msg);
+
+    void log_error(const LogInfo &log_info);
+
+    void register_line(int line_num, std::string &&line);
 
     void flush();
 
     bool has_error() const;
 
+    static constexpr int max_line_map_size = 50;
+
 private:
     std::string source_name;
+
+    std::priority_queue<LogInfo, std::vector<LogInfo>, std::greater<>> buffer;
 
     std::unordered_map<int, std::string> line_map;
 
     bool error_flag;
 
-    static std::string indent(int count);
+    static std::string indent(std::string_view line, int col);
 
     static std::string tilde(int count);
-
-    static constexpr int buffer_size = 50;
 };
 
 

@@ -27,6 +27,8 @@ public:
         tok_real,
         tok_string,
         tok_eng,
+        tok_indent,
+        tok_newline,
 
         // operators
         tok_comma, // ,
@@ -87,8 +89,6 @@ public:
         tok_undefined
     };
 
-    static constexpr size_t max_token_len = 3;
-
     explicit Lexer(const std::string& source_name);
 
     Token get_token(); //현재 입력 스트림에서 토큰 타입(enum) 얻기
@@ -97,11 +97,13 @@ public:
 
     std::pair<int, int> get_cur_loc(); //cur_loc getter
 
-    std::pair<int, int> get_token_loc(); //token_start_loc getter
+    std::pair<int, int> get_token_start_loc(); //token_start_loc getter
 
     void release_error(const std::initializer_list<std::string_view>& msg);
 
     static std::string token_to_string(Token token);
+
+    static constexpr size_t max_token_len = 3;
 
 private:
     std::string cur_line; //현재 줄
@@ -121,8 +123,6 @@ private:
     std::deque<int> op_buffer; //연산자 토큰 전용 버퍼
 
     bool advance(); //현재 입력 스트림에서 한 글자 얻고 위치 기록 (줄바꿈 되면 true 리턴)
-
-    int advance_inner_step(); //위 advance의 단순 버전. 줄바꿈 고려 X
 
     Token consume_op_bufer(); //연산자 토큰 버퍼 해소
 };
