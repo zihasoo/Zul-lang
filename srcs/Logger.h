@@ -5,7 +5,6 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include <sstream>
 
 class Logger {
 public:
@@ -24,13 +23,11 @@ public:
 private:
     std::string source_name;
 
-    std::stringstream buffer;
-
     std::unordered_map<int, std::string> line_map;
 
     bool error_flag;
 
-    static std::string indent_by_count(int count);
+    static std::string indent(int count);
 
     static std::string tilde(int count);
 

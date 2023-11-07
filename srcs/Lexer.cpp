@@ -1,36 +1,24 @@
 #include "Lexer.h"
 #include "Logger.h"
 #include "System.h"
+#include "Utility.h"
 
 using std::string;
 using std::cerr;
 using std::ifstream;
 using std::pair;
-using std::set;
 using std::initializer_list;
 using std::string_view;
+using std::u16string_view;
+using std::u16string;
+using std::unordered_map;
 
-Lexer::Lexer(const string& source_name) : source(source_name) {
+Lexer::Lexer(const string &source_name) : source(source_name) {
     last_word.reserve(30);
     cur_line.reserve(80);
     if (!source.is_open()) {
-        cerr << "\"" << source_name << "\" 파일이 존재하지 않습니다.";
+        cerr << "에러: \"" << source_name << "\" 파일이 존재하지 않습니다.";
         exit(1);
-    }
-}
-
-bool Lexer::advance() {
-    last_char = source.get();
-    if (last_char == '\n' || last_char == '\r' || last_char == EOF) {
-        System::logger.register_line(cur_loc.first, cur_line);
-        cur_line.clear();
-        cur_loc.first++;
-        cur_loc.second = 0;
-        return true;
-    } else {
-        cur_line.push_back(last_char);
-        cur_loc.second++;
-        return false;
     }
 }
 
@@ -49,51 +37,121 @@ void Lexer::release_error(const initializer_list<string_view> &msg) {
     while (!advance()); //다음 줄로 이동
 }
 
-bool iskor(int c) {
-
+Lexer::Token Lexer::consume_op_bufer() {
+    int len = std::min(max_token_len, op_buffer.size());
+    last_word.clear();
+    for (int i = 0; i < len; ++i) {
+        last_word.push_back(op_buffer[i]);
+    }
+    for (int i = len; i > 0; --i) {
+        if (token_map.contains(last_word)) {
+            if (token_map[last_word] == tok_anno) {
+                op_buffer.clear();
+                while (!advance());
+                return get_token();
+            }
+            for (int j = 0; j < i; ++j) {
+                op_buffer.pop_front();
+            }
+            token_start_loc.second += len;
+            return token_map[last_word];
+        }
+        last_word.pop_back();
+    }
+    for (int i = 0; i < len; ++i) {
+        op_buffer.pop_front();
+    }
+    return tok_undefined;
 }
 
-bool iskornum(int c) {
-    return iskor(c) || ('0' <= c && c <= '9');
+int Lexer::advance_inner_step() {
+    int ret = source.get();
+    cur_loc.second++;
+    cur_line.push_back(ret);
+    return ret;
+}
+
+bool Lexer::advance() {
+    last_char = source.get();
+    if (last_char == '\n' || last_char == '\r' || last_char == EOF) {
+        System::logger.register_line(cur_loc.first, cur_line);
+        cur_line.clear();
+        cur_loc.first++;
+        cur_loc.second = 0;
+        return true;
+    } else {
+        cur_line.push_back(last_char);
+        cur_loc.second++;
+        int ret = 0;
+        if ((last_char & 0x80) == 0) {
+            ret = last_char;
+        } else if ((last_char & 0xE0) == 0xC0) {
+            ret = (last_char & 0x1F) << 6;
+            last_char = advance_inner_step();
+            ret |= (last_char & 0x3F);
+        } else if ((last_char & 0xF0) == 0xE0) {
+            ret = (last_char & 0xF) << 12;
+            last_char = advance_inner_step();
+            ret |= (last_char & 0x3F) << 6;
+            last_char = advance_inner_step();
+            ret |= (last_char & 0x3F);
+        } else if ((last_char & 0xF8) == 0xF0) {
+            ret = (last_char & 0x7) << 18;
+            last_char = advance_inner_step();
+            ret |= (last_char & 0x3F) << 12;
+            last_char = advance_inner_step();
+            ret |= (last_char & 0x3F) << 6;
+            last_char = advance_inner_step();
+            ret |= (last_char & 0x3F);
+        }
+        last_char = ret;
+        return false;
+    }
 }
 
 Lexer::Token Lexer::get_token() {
+    if (!op_buffer.empty())
+        return consume_op_bufer();
+
     last_word.clear();
     while (isspace(last_char)) advance();
 
     token_start_loc = cur_loc;
-    if (isalpha(last_char)) {
-        while (isalnum(last_char)) {
-            if (isalpha(last_char)) last_char = tolower(last_char);
+    if (iskor(last_char)) {
+        while (iskornum(last_char) || last_char == '?') {
             last_word.push_back(last_char);
             advance();
         }
-//        if (last_word == "nop")
-//            return tok_nop;
-//        if (last_word == "add")
-//            return tok_add;
-//        if (last_word == "sub")
-//            return tok_sub;
-//        if (last_word == "cmp")
-//            return tok_cmp;
-//        if (last_word == "ja")
-//            return tok_ja;
-//        if (last_word == "jb")
-//            return tok_jb;
-//        if (last_word == "je")
-//            return tok_je;
-//        if (last_word == "jmp")
-//            return tok_jmp;
-//        if (last_word == "mov")
-//            return tok_mov;
+        if (token_map.contains(last_word))
+            return token_map[last_word];
 
         return tok_identifier;
     }
 
-    if ('0' <= last_char && last_char <= '9') {
-        while ('0' <= last_char && last_char <= '9') {
+    if (isalpha(last_char)) {
+        while (isalnum(last_char)) {
             last_word.push_back(last_char);
             advance();
+        }
+        return tok_eng;
+    }
+
+    if (isnum(last_char)) {
+        while (isnum(last_char)) {
+            last_word.push_back(last_char);
+            advance();
+        }
+        if (last_char == '.') {
+            last_word.push_back(last_char);
+            advance();
+            while (isnum(last_char)) {
+                last_word.push_back(last_char);
+                advance();
+            }
+            //TODO 잘못된 소수점 어떻게 처리 할건지
+            if (last_char == '.')
+                return tok_undefined;
+            return tok_real;
         }
         return tok_int;
     }
@@ -102,23 +160,15 @@ Lexer::Token Lexer::get_token() {
         return tok_eof;
     }
 
-    last_word.push_back(last_char);
-    advance();
-    if (last_word == "//") {
-        while (!advance()); //주석 나오면 다음 줄까지 계속 이동
-        while (isspace(last_char)) advance();
-        return tok_anno;
+    while (!isspace(last_char) && !iskor(last_char) && !isalnum(last_char)) {
+        op_buffer.push_back(last_char);
+        advance();
     }
-    if (last_word == ";") {
-        return tok_semicolon;
-    }
-    if (last_word == ",") {
-        return tok_comma;
-    }
-    return tok_undefined;
+
+    return consume_op_bufer();
 }
 
-const string &Lexer::get_word() {
+const u16string &Lexer::get_word() {
     return last_word;
 }
 
@@ -132,18 +182,6 @@ pair<int, int> Lexer::get_token_loc() {
 
 string Lexer::token_to_string(Token token) {
     switch (token) {
-        case tok_eof:
-            return "tok_eof";
-        case tok_identifier:
-            return "tok_identifier";
-        case tok_int:
-            return "tok_int";
-        case tok_undefined:
-            return "tok_undefined";
-        case tok_comma:
-            return "tok_comma";
-        case tok_semicolon:
-            return "tok_semicolon";
         case tok_hi:
             return "tok_hi";
         case tok_go:
@@ -160,16 +198,22 @@ string Lexer::token_to_string(Token token) {
             return "tok_sg";
         case tok_tt:
             return "tok_tt";
+        case tok_identifier:
+            return "tok_identifier";
+        case tok_int:
+            return "tok_int";
         case tok_real:
             return "tok_real";
         case tok_string:
             return "tok_string";
-        case tok_eq:
-            return "tok_eq";
-        case tok_gt:
-            return "tok_gt";
-        case tok_lt:
-            return "tok_lt";
+        case tok_eng:
+            return "tok_eng";
+        case tok_comma:
+            return "tok_comma";
+        case tok_colon:
+            return "tok_colon";
+        case tok_semicolon:
+            return "tok_semicolon";
         case tok_lpar:
             return "tok_lpar";
         case tok_rpar:
@@ -184,6 +228,12 @@ string Lexer::token_to_string(Token token) {
             return "tok_lbrk";
         case tok_dot:
             return "tok_dot";
+        case tok_dquotes:
+            return "tok_dquotes";
+        case tok_squotes:
+            return "tok_squotes";
+        case tok_anno:
+            return "tok_anno";
         case tok_add:
             return "tok_add";
         case tok_sub:
@@ -216,33 +266,104 @@ string Lexer::token_to_string(Token token) {
             return "tok_lshift";
         case tok_rshift:
             return "tok_rshift";
-        case tok_asn:
-            return "tok_asn";
-        case tok_mul_asn:
-            return "tok_mul_asn";
-        case tok_div_asn:
-            return "tok_div_asn";
-        case tok_mod_asn:
-            return "tok_mod_asn";
-        case tok_add_asn:
-            return "tok_add_asn";
-        case tok_sub_asn:
-            return "tok_sub_asn";
-        case tok_lshift_asn:
-            return "tok_lshift_asn";
-        case tok_rshift_asn:
-            return "tok_rshift_asn";
-        case tok_and_asn:
-            return "tok_and_asn";
-        case tok_or_asn:
-            return "tok_or_asn";
-        case tok_xor_asn:
-            return "tok_xor_asn";
+        case tok_assn:
+            return "tok_assn";
+        case tok_mul_assn:
+            return "tok_mul_assn";
+        case tok_div_assn:
+            return "tok_div_assn";
+        case tok_mod_assn:
+            return "tok_mod_assn";
+        case tok_add_assn:
+            return "tok_add_assn";
+        case tok_sub_assn:
+            return "tok_sub_assn";
+        case tok_lshift_assn:
+            return "tok_lshift_assn";
+        case tok_rshift_assn:
+            return "tok_rshift_assn";
+        case tok_and_assn:
+            return "tok_and_assn";
+        case tok_or_assn:
+            return "tok_or_assn";
+        case tok_xor_assn:
+            return "tok_xor_assn";
+        case tok_eq:
+            return "tok_eq";
         case tok_ineq:
             return "tok_ineq";
+        case tok_gt:
+            return "tok_gt";
         case tok_gteq:
             return "tok_gteq";
+        case tok_lt:
+            return "tok_lt";
         case tok_lteq:
             return "tok_lteq";
+        case tok_eof:
+            return "tok_eof";
+        case tok_undefined:
+            return "tok_undefined";
     }
 }
+
+unordered_map<u16string_view, Lexer::Token> Lexer::token_map =
+        {{u"ㅎㅇ",tok_hi},
+         {u"ㄱㄱ",tok_go},
+         {u"ㅇㅈ?",tok_ij},
+         {u"ㄴㄴ?",tok_no},
+         {u"ㄴㄴ",tok_nope},
+         {u"ㅈㅈ",tok_gg},
+         {u"ㅅㄱ",tok_sg},
+         {u"ㅌㅌ",tok_tt},
+
+         {u",",tok_comma},
+         {u":",tok_colon},
+         {u";",tok_semicolon},
+         {u"(",tok_lpar},
+         {u")",tok_rpar},
+         {u"[",tok_lsqbrk},
+         {u"]",tok_rsqbrk},
+         {u"{",tok_lbrk},
+         {u"}",tok_rbrk},
+         {u".",tok_dot},
+         {u"\"",tok_dquotes},
+         {u"'",tok_squotes},
+         {u"//",tok_anno},
+
+         {u"+",tok_add},
+         {u"-",tok_sub},
+         {u"*",tok_mul},
+         {u"/",tok_div},
+         {u"%",tok_mod},
+         {u"++",tok_inc},
+         {u"--",tok_dec},
+
+         {u"&&",tok_and},
+         {u"||",tok_or},
+         {u"!",tok_not},
+         {u"&",tok_bitand},
+         {u"|",tok_bitor},
+         {u"~",tok_bitnot},
+         {u"^",tok_bitxor},
+         {u"<<",tok_lshift},
+         {u">>",tok_rshift},
+
+         {u"=",tok_assn},
+         {u"*=",tok_mul_assn},
+         {u"/=",tok_div_assn},
+         {u"%=",tok_mod_assn},
+         {u"+=",tok_add_assn},
+         {u"-=",tok_sub_assn},
+         {u"<<=",tok_lshift_assn},
+         {u">>=",tok_rshift_assn},
+         {u"&=",tok_and_assn},
+         {u"|=",tok_or_assn},
+         {u"^=",tok_xor_assn},
+
+         {u"==",tok_eq},
+         {u"!=",tok_ineq},
+         {u">",tok_gt},
+         {u">=",tok_gteq},
+         {u"<",tok_lt},
+         {u"<=",tok_lteq}};

@@ -4,18 +4,17 @@
 using std::pair;
 using std::string;
 using std::unordered_map;
-using std::stringstream;
-using std::cerr;
+using std::clog;
 
 Logger::Logger() : error_flag(false) {
     line_map.reserve(buffer_size + 5);
 }
 
 void Logger::log_error(pair<int, int> loc, int word_size, const string &msg) {
-    buffer << source_name << ' ' << loc.first << ':' << loc.second << ": 에러: " << msg << '\n';
-    buffer.width(5);
-    buffer << loc.first << " | " << line_map[loc.first] << '\n'
-           << "      | " << indent_by_count(loc.second - 1) << "^"
+    clog << source_name << ' ' << loc.first << ':' << loc.second << ": 에러: " << msg << '\n';
+    clog.width(5);
+    clog << loc.first << " | " << line_map[loc.first] << '\n'
+           << "      | " << indent(loc.second - 1) << "^"
            << tilde(word_size - 1) << '\n';
     error_flag = true;
 }
@@ -27,21 +26,19 @@ void Logger::register_line(int line_num, const string &line) {
         flush();
 }
 
-string Logger::indent_by_count(int count) {
+string Logger::indent(int count) {
     string ret;
-    ret.assign(' ', count);
+    ret.assign(count, ' ');
     return ret;
 }
 
 string Logger::tilde(int count) {
     string ret;
-    ret.assign('~', count);
+    ret.assign(count, '~');
     return ret;
 }
 
 void Logger::flush() {
-    cerr << buffer.str();
-    buffer.clear();
     line_map.clear();
 }
 

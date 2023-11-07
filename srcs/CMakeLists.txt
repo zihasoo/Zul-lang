@@ -8,4 +8,6 @@ add_executable(
         Logger.h
         Lexer.cpp
         Lexer.h
+        Utility.cpp
+        Utility.h
 )
