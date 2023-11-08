@@ -66,14 +66,13 @@ Lexer::Token Lexer::consume_op_bufer() {
 
 bool Lexer::advance() {
     last_char = source.get();
+    cur_loc.second++;
     if (last_char == '\n' || last_char == '\r' || last_char == EOF) {
         System::logger.register_line(cur_loc.first, std::move(cur_line));
         cur_line.reserve(80);
-        cur_loc.second++;
         return true;
     } else {
         cur_line.push_back(last_char);
-        cur_loc.second++;
         int ret = 0;
         if ((last_char & 0x80) == 0) {
             ret = last_char;
@@ -127,17 +126,17 @@ Lexer::Token Lexer::get_token() {
     if (is_line_start) {
         while (last_char == ' ') {
             last_word.push_back(last_char);
-            if (last_word == u"    ") {
-                advance();
+            advance();
+            if (last_word.size() == 4) {
                 return tok_indent;
             }
-            advance();
         }
         is_line_start = false;
     }
-    else {
-        while (isspace(last_char)) advance();
-    }
+
+    last_word.clear();
+    while (isspace(last_char))
+        advance();
 
     token_start_loc = cur_loc;
     if (iskor(last_char)) {
