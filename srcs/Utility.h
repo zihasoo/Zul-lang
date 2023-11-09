@@ -9,5 +9,4 @@ bool isnum(int c);
 
 bool iskornum(int c);
 
-
 #endif //ZULLANG_UTILITY_H

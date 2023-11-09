@@ -103,8 +103,6 @@ public:
 
     static std::string token_to_string(Token token);
 
-    static constexpr size_t max_token_len = 3;
-
 private:
     std::string cur_line; //현재 줄
 
@@ -120,11 +118,7 @@ private:
 
     static std::unordered_map<std::u16string_view, Token> token_map; //토큰 문자열 - Token값 해시맵
 
-    std::deque<int> op_buffer; //연산자 토큰 전용 버퍼
-
     bool advance(); //현재 입력 스트림에서 한 글자 얻고 위치 기록 (줄바꿈 되면 true 리턴)
-
-    Token consume_op_bufer(); //연산자 토큰 버퍼 해소
 };
 
 #endif //ZULLANG_LEXER_H
