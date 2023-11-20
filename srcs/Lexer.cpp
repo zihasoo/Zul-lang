@@ -13,7 +13,7 @@ using std::u16string_view;
 using std::u16string;
 using std::unordered_map;
 
-Lexer::Lexer(const string &source_name) : source(source_name) {
+Lexer::Lexer(string_view source_name) : source(source_name) {
     last_word.reserve(30);
     cur_line.reserve(80);
     if (!source.is_open()) {
@@ -35,7 +35,6 @@ void Lexer::release_error(const initializer_list<string_view> &msgs) {
         str.append(x);
     }
     System::logger.log_error(token_start_loc, last_word.size(), std::move(str));
-    while (!advance()); //다음 줄로 이동
 }
 
 
@@ -129,24 +128,19 @@ Lexer::Token Lexer::get_token() {
         return tok_eng;
     }
 
-    if (isnum(last_char)) {
-        while (isnum(last_char)) {
-            last_word.push_back(last_char);
-            advance();
-        }
-        if (last_char == '.') {
-            last_word.push_back(last_char);
-            advance();
-            while (isnum(last_char)) {
-                last_word.push_back(last_char);
-                advance();
+    if (isnum(last_char) || last_char == '.') {
+        bool isreal = false, wrong = false;
+        while (isnum(last_char) || last_char == '.') {
+            if (last_char == '.') {
+                if (isreal)
+                    wrong = true;
+                isreal = true;
             }
-            //TODO 잘못된 소수점 어떻게 처리 할건지
-            if (last_char == '.')
-                return tok_undefined;
-            return tok_real;
+            last_word.push_back(last_char);
+            advance();
         }
-        return tok_int;
+        if (wrong) return tok_undefined;
+        return isreal ? tok_real : tok_int;
     }
 
     if (last_char == EOF) {
@@ -175,7 +169,7 @@ Lexer::Token Lexer::get_token() {
     return token_map[last_word];
 }
 
-const u16string &Lexer::get_word() {
+u16string Lexer::get_word() {
     return last_word;
 }
 

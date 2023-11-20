@@ -21,8 +21,12 @@ void System::parse_arg(int argc, char **argv) {
                 cerr << "에러: 프로그램 인수가 잘못되었습니다.\n";
                 exit(1);
             }
-        } else {
+        } else if (source_name.empty()){
             source_name = argv[i];
+        }
+        else {
+            cerr << "에러: 줄랭 컴파일러는 아직 여러 개의 파일을 인자로 받을 수 없습니다.\n";
+            exit(1);
         }
     }
     if (source_name.empty()) {

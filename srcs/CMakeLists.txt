@@ -10,4 +10,7 @@ add_executable(
         Lexer.h
         Utility.cpp
         Utility.h
+        Parser.cpp
+        Parser.h
+        AST.h
 )

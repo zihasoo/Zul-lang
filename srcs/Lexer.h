@@ -3,6 +3,7 @@
 
 #include <fstream>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <unordered_map>
 #include <initializer_list>
@@ -89,17 +90,17 @@ public:
         tok_undefined
     };
 
-    explicit Lexer(const std::string& source_name);
+    explicit Lexer(std::string_view source_name);
 
     Token get_token(); //현재 입력 스트림에서 토큰 타입(enum) 얻기
 
-    const std::u16string& get_word(); //last_word getter
+    std::u16string get_word(); //last_word getter
 
     std::pair<int, int> get_cur_loc(); //cur_loc getter
 
     std::pair<int, int> get_token_start_loc(); //token_start_loc getter
 
-    void release_error(const std::initializer_list<std::string_view>& msg);
+    void release_error(const std::initializer_list<std::string_view>& msg); //현재 토큰을 기반으로 에러를 로깅함
 
     static std::string token_to_string(Token token);
 
