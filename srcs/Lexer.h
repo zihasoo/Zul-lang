@@ -9,88 +9,88 @@
 #include <initializer_list>
 #include <deque>
 
+enum Token {
+    // keyword
+    tok_hi, //ㅎㅇ
+    tok_go, //ㄱㄱ
+    tok_ij, //ㅇㅈ?
+    tok_no, //ㄴㄴ?
+    tok_nope, //ㄴㄴ
+    tok_gg, // ㅈㅈ
+    tok_sg, //ㅅㄱ
+    tok_tt, //ㅌㅌ
+
+    // primary
+    tok_identifier,
+    tok_int,
+    tok_real,
+    tok_string,
+    tok_eng,
+    tok_indent,
+    tok_newline,
+
+    // operators
+    tok_comma, // ,
+    tok_colon, // :
+    tok_semicolon, // ;
+    tok_lpar, // (
+    tok_rpar, // )
+    tok_rsqbrk, // [
+    tok_lsqbrk, // ]
+    tok_rbrk, // {
+    tok_lbrk, // }
+    tok_dot, // .
+    tok_dquotes, //"
+    tok_squotes, //'
+    tok_anno, // //
+
+    tok_add, // +
+    tok_sub, // -
+    tok_mul, // *
+    tok_div, // /
+    tok_mod, // %
+    tok_inc, // ++
+    tok_dec, // --
+
+    tok_and, // &&
+    tok_or, // ||
+    tok_not, // !
+    tok_bitand, // &
+    tok_bitor, // |
+    tok_bitnot, // ~
+    tok_bitxor, // ^
+    tok_lshift, // <<
+    tok_rshift, // >>
+
+    tok_assn, // =
+    tok_mul_assn, // *=
+    tok_div_assn, // /=
+    tok_mod_assn, // %=
+    tok_add_assn, // +=
+    tok_sub_assn, // -=
+    tok_lshift_assn, // <<=
+    tok_rshift_assn, // >>=
+    tok_and_assn, // &=
+    tok_or_assn, // |=
+    tok_xor_assn, // ^=
+
+    tok_eq, // ==
+    tok_ineq, // !=
+    tok_gt,// >
+    tok_gteq,// >=
+    tok_lt, // <
+    tok_lteq, // <=
+
+    //eof
+    tok_eof,
+
+    //undefined
+    tok_undefined
+};
+
 class Lexer {
 public:
-    enum Token {
-        // keyword
-        tok_hi, //ㅎㅇ
-        tok_go, //ㄱㄱ
-        tok_ij, //ㅇㅈ?
-        tok_no, //ㄴㄴ?
-        tok_nope, //ㄴㄴ
-        tok_gg, // ㅈㅈ
-        tok_sg, //ㅅㄱ
-        tok_tt, //ㅌㅌ
-
-        // primary
-        tok_identifier,
-        tok_int,
-        tok_real,
-        tok_string,
-        tok_eng,
-        tok_indent,
-        tok_newline,
-
-        // operators
-        tok_comma, // ,
-        tok_colon, // :
-        tok_semicolon, // ;
-        tok_lpar, // (
-        tok_rpar, // )
-        tok_rsqbrk, // [
-        tok_lsqbrk, // ]
-        tok_rbrk, // {
-        tok_lbrk, // }
-        tok_dot, // .
-        tok_dquotes, //"
-        tok_squotes, //'
-        tok_anno, // //
-
-        tok_add, // +
-        tok_sub, // -
-        tok_mul, // *
-        tok_div, // /
-        tok_mod, // %
-        tok_inc, // ++
-        tok_dec, // --
-
-        tok_and, // &&
-        tok_or, // ||
-        tok_not, // !
-        tok_bitand, // &
-        tok_bitor, // |
-        tok_bitnot, // ~
-        tok_bitxor, // ^
-        tok_lshift, // <<
-        tok_rshift, // >>
-
-        tok_assn, // =
-        tok_mul_assn, // *=
-        tok_div_assn, // /=
-        tok_mod_assn, // %=
-        tok_add_assn, // +=
-        tok_sub_assn, // -=
-        tok_lshift_assn, // <<=
-        tok_rshift_assn, // >>=
-        tok_and_assn, // &=
-        tok_or_assn, // |=
-        tok_xor_assn, // ^=
-
-        tok_eq, // ==
-        tok_ineq, // !=
-        tok_gt,// >
-        tok_gteq,// >=
-        tok_lt, // <
-        tok_lteq, // <=
-
-        //eof
-        tok_eof,
-
-        //undefined
-        tok_undefined
-    };
-
-    explicit Lexer(std::string_view source_name);
+    explicit Lexer(const std::string& source_name);
 
     Token get_token(); //현재 입력 스트림에서 토큰 타입(enum) 얻기
 
@@ -100,7 +100,9 @@ public:
 
     std::pair<int, int> get_token_start_loc(); //token_start_loc getter
 
-    void release_error(const std::initializer_list<std::string_view>& msg); //현재 토큰을 기반으로 에러를 로깅함
+    void log_cur_token(std::string msg);  //현재 토큰을 기반으로 에러를 로깅함
+
+    void log_cur_token(const std::initializer_list<std::string_view>& msg); //에러 메시지 여러개 받는 오버로드
 
     static std::string token_to_string(Token token);
 

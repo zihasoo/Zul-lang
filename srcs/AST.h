@@ -5,18 +5,12 @@
 #include <utility>
 #include "Lexer.h"
 
-enum class ZulType {
-    type_int,
-    type_real,
-    type_string
-};
-
 class AST {
 public:
     virtual ~AST() = default;
 };
 
-class ImmRealAST : public AST{
+class ImmRealAST : public AST {
     double val;
 public:
     explicit ImmRealAST(double val) : val(val) {}
@@ -35,28 +29,38 @@ public:
 };
 
 class VariableAST : public AST {
-    std::string name;
-    ZulType type;
+    std::u16string name;
+    int type;
 public:
-    VariableAST(std::string name, ZulType type) : name(std::move(name)), type(type) {}
+    VariableAST(std::u16string name, int type) : name(std::move(name)), type(type) {}
 };
 
 class BinOpAST : public AST {
     std::unique_ptr<AST> left, right;
-    Lexer::Token op;
+    Token op;
 public:
-    BinOpAST(std::unique_ptr<AST> left, std::unique_ptr<AST> right, Lexer::Token op) : left(std::move(left)), right(std::move(right)), op(op) {}
+    BinOpAST(std::unique_ptr<AST> left, std::unique_ptr<AST> right, Token op) : left(std::move(left)), right(std::move(right)), op(op) {}
 };
 
 class UnaryOpAST : public AST {
     std::unique_ptr<AST> ast;
-    Lexer::Token op;
+    Token op;
 public:
-    UnaryOpAST(std::unique_ptr<AST> ast, Lexer::Token op) : ast(std::move(ast)), op(op) {}
+    UnaryOpAST(std::unique_ptr<AST> ast, Token op) : ast(std::move(ast)), op(op) {}
+};
+
+class FuncCallAST : public AST {
+    std::u16string name;
+    std::vector<std::unique_ptr<AST>> args;
 };
 
 class FuncAST : public AST {
-
+    int return_type = 0;
+    std::vector<VariableAST> params;
+    std::unique_ptr<AST> body;
+public:
+    FuncAST(int return_type, std::vector<VariableAST> params, std::unique_ptr<AST> body)
+            : return_type(return_type), params(std::move(params)), body(std::move(body)) {}
 };
 
 #endif //ZULLANG_AST_H

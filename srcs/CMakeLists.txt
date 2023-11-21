@@ -1,6 +1,6 @@
 
 add_executable(
-        Zullang
+        zulc
         main.cpp
         System.cpp
         System.h

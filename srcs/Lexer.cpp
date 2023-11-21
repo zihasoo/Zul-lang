@@ -13,7 +13,7 @@ using std::u16string_view;
 using std::u16string;
 using std::unordered_map;
 
-Lexer::Lexer(string_view source_name) : source(source_name) {
+Lexer::Lexer(const string& source_name) : source(source_name) {
     last_word.reserve(30);
     cur_line.reserve(80);
     if (!source.is_open()) {
@@ -23,15 +23,19 @@ Lexer::Lexer(string_view source_name) : source(source_name) {
     advance();
 }
 
-void Lexer::release_error(const initializer_list<string_view> &msgs) {
+void Lexer::log_cur_token(string msg) {
+    System::logger.log_error(token_start_loc, last_word.size(), std::move(msg));
+}
+
+void Lexer::log_cur_token(const std::initializer_list<std::string_view> &msg) {
     //매모리의 반복 재할당을 막기 위해 initializer_list로 받고 한 번에 할당
     string str;
     int size = 0;
-    for (const auto &x: msgs) {
+    for (const auto &x: msg) {
         size += x.size();
     }
     str.reserve(size);
-    for (const auto &x: msgs) {
+    for (const auto &x: msg) {
         str.append(x);
     }
     System::logger.log_error(token_start_loc, last_word.size(), std::move(str));
@@ -80,7 +84,7 @@ bool Lexer::advance() {
     }
 }
 
-Lexer::Token Lexer::get_token() {
+Token Lexer::get_token() {
     static bool is_line_start = false;
 
     last_word.clear();
@@ -312,7 +316,7 @@ string Lexer::token_to_string(Token token) {
     }
 }
 
-unordered_map<u16string_view, Lexer::Token> Lexer::token_map =
+unordered_map<u16string_view, Token> Lexer::token_map =
         {{u"ㅎㅇ",  tok_hi},
          {u"ㄱㄱ",  tok_go},
          {u"ㅇㅈ?", tok_ij},
