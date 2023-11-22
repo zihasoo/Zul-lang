@@ -26,23 +26,22 @@ void Logger::log_error(const Logger::LogInfo &log_info) {
 }
 
 void Logger::register_line(int line_num, string &&line) {
-    if (!line_map.contains(line_num))
-        line_map.emplace(line_num, std::move(line));
+    line_map.emplace(line_num, std::move(line));
     if (line_map.size() > max_line_map_size)
         flush();
 }
 
 string Logger::indent(string_view line, int col) {
     string ret;
-    int u8cnt = 0;
+    int corr = 0;
     int byte;
-    for (int i = 0; i - u8cnt * 2 < col; ++i) {
+    for (int i = 0; i - corr < col; ++i) {
         byte = get_byte_count(line[i]);
         if (byte == 1) {
             ret.push_back(' ');
         }
         else {
-            u8cnt++;
+            corr += byte - 1;
             ret.push_back('\xE3');
             ret.push_back('\x80');
             ret.push_back('\x80');

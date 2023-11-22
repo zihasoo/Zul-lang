@@ -1,5 +1,15 @@
 #include "Utility.h"
 
+llvm::Type *get_llvm_type(llvm::LLVMContext *context, int type_num) {
+    if (type_num == 0) {
+        return llvm::Type::getInt64Ty(*context);
+    } else if (type_num == 1) {
+        return llvm::Type::getDoubleTy(*context);
+    } else {
+        return llvm::Type::getVoidTy(*context);
+    }
+}
+
 int get_byte_count(int c) {
     if ((c & 0x80) == 0)
         return 1;

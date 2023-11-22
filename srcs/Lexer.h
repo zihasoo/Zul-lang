@@ -7,7 +7,6 @@
 #include <utility>
 #include <unordered_map>
 #include <initializer_list>
-#include <deque>
 
 enum Token {
     // keyword
@@ -49,8 +48,6 @@ enum Token {
     tok_mul, // *
     tok_div, // /
     tok_mod, // %
-    tok_inc, // ++
-    tok_dec, // --
 
     tok_and, // &&
     tok_or, // ||
@@ -94,7 +91,7 @@ public:
 
     Token get_token(); //현재 입력 스트림에서 토큰 타입(enum) 얻기
 
-    std::u16string get_word(); //last_word getter
+    std::string get_word(); //last_word getter
 
     std::pair<int, int> get_cur_loc(); //cur_loc getter
 
@@ -109,9 +106,11 @@ public:
 private:
     std::string cur_line; //현재 줄
 
-    int last_char = ' '; //마지막으로 읽은 글자
+    int last_char = ' '; //마지막으로 읽은 글자 (유니코드)
 
-    std::u16string last_word; //get_token 함수로부터 얻어진 단어 (string)
+    std::string last_word; //get_token 함수로부터 얻어진 단어 (string)
+
+    std::string raw_last_char; //utf8 한 글자를 그대로 저장하기 위한 버퍼
 
     std::ifstream source; //입력 파일
 
@@ -119,9 +118,9 @@ private:
 
     std::pair<int, int> token_start_loc = {1, 0}; //마지막으로 읽은 토큰의 시작 위치
 
-    static std::unordered_map<std::u16string_view, Token> token_map; //토큰 문자열 - Token값 해시맵
+    static std::unordered_map<std::string_view, Token> token_map; //토큰 문자열 - Token값 해시맵
 
-    bool advance(); //현재 입력 스트림에서 한 글자 얻고 위치 기록 (줄바꿈 되면 true 리턴)
+    void advance(); //현재 입력 스트림에서 한 글자 얻고 위치 기록
 };
 
 #endif //ZULLANG_LEXER_H
