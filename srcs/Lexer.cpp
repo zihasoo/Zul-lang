@@ -9,8 +9,6 @@ using std::ifstream;
 using std::pair;
 using std::initializer_list;
 using std::string_view;
-using std::u16string_view;
-using std::u16string;
 using std::unordered_map;
 
 Lexer::Lexer(const string &source_name) : source(source_name) {
@@ -121,8 +119,8 @@ Token Lexer::get_token() {
         advance();
 
     token_start_loc = cur_loc;
-    if (iskor(last_char)) {
-        while (iskornum(last_char) || last_char == '?') {
+    if (iskor(last_char) || last_char == '_') {
+        while (iskornum(last_char) || last_char == '_' || last_char == '?') {
             last_word.append(raw_last_char);
             advance();
         }
@@ -132,8 +130,8 @@ Token Lexer::get_token() {
         return tok_identifier;
     }
 
-    if (isalpha(last_char)) {
-        while (isalnum(last_char)) {
+    if (isalpha(last_char) || last_char == '_') {
+        while (isalnum(last_char) || last_char == '_') {
             last_word.append(raw_last_char);
             advance();
         }

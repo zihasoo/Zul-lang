@@ -23,7 +23,7 @@ int get_byte_count(int c) {
 }
 
 bool iskor(int c) {
-    return (0x3131 <= c && c <= 0x318E) || (0xAC00 <= c && c <= 0xD7FF) || c == '_';
+    return (0x3131 <= c && c <= 0x318E) || (0xAC00 <= c && c <= 0xD7FF);
 }
 
 bool isnum(int c) {

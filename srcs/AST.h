@@ -102,20 +102,19 @@ struct FuncCallAST : public AST {
             : name(std::move(name)), args(std::move(args)) {}
 };
 
-struct FuncAST {
+struct FuncProtoAST {
     std::string name;
-    int return_type = 0;
+    int return_type;
     std::vector<VariableAST> params;
-    std::unique_ptr<AST> body;
 
-    FuncAST(std::string name, int return_type, std::vector<VariableAST> params, std::unique_ptr<AST> body)
-            : name(std::move(name)), return_type(return_type), params(std::move(params)), body(std::move(body)) {}
+    FuncProtoAST(std::string name, int return_type, std::vector<VariableAST> params) :
+            name(std::move(name)), return_type(return_type), params(std::move(params)) {}
 
-    llvm::Function *code_gen(llvm::LLVMContext *context, llvm::Module *module, llvm::IRBuilder<> *builder) {
+    llvm::Function *code_gen(llvm::LLVMContext *context, llvm::Module *module) {
         std::vector<llvm::Type *> param_types;
         param_types.reserve(params.size());
-        for (auto &p: params) {
-            param_types.emplace_back(get_llvm_type(context, p.type));
+        for (auto &param: params) {
+            param_types.emplace_back(get_llvm_type(context, param.type));
         }
         auto func_type = llvm::FunctionType::get(get_llvm_type(context, return_type), param_types, false);
         auto llvm_func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, name, *module);
@@ -123,7 +122,18 @@ struct FuncAST {
         for (auto &arg: llvm_func->args()) {
             arg.setName(params[i].name);
         }
+        return llvm_func;
+    }
+};
 
+struct FuncAST {
+    std::unique_ptr<FuncProtoAST> proto;
+    std::unique_ptr<AST> body;
+
+    FuncAST(std::unique_ptr<FuncProtoAST> proto, std::unique_ptr<AST> body) : proto(std::move(proto)), body(std::move(body)) {}
+
+    llvm::Function *code_gen(llvm::LLVMContext *context, llvm::Module *module, llvm::IRBuilder<> *builder) {
+        auto llvm_func = proto->code_gen(context, module);
         auto bb = llvm::BasicBlock::Create(*context, "entry", llvm_func);
         builder->SetInsertPoint(bb);
 

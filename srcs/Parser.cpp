@@ -1,49 +1,7 @@
 #include "Parser.h"
 
-std::unordered_map<Token, int> Parser::op_prec_map = {
-        {tok_bitnot,      490}, // ~
-        {tok_not,         490}, // !
-
-        {tok_mul,         480}, // *
-        {tok_div,         480}, // /
-        {tok_mod,         480}, // %
-
-        {tok_add,         470}, // +
-        {tok_sub,         470}, // -
-
-        {tok_lshift,      460}, // <<
-        {tok_rshift,      460}, // >>
-
-        {tok_lt,          450}, // <
-        {tok_gt,          450}, // >
-        {tok_lteq,        450}, // <=
-        {tok_gteq,        450}, // >=
-
-        {tok_eq,          440}, // ==
-        {tok_ineq,        440}, // !=
-
-        {tok_bitand,      430}, // &
-
-        {tok_bitxor,      420}, // ^
-
-        {tok_bitor,       410}, // |
-
-        {tok_and,         400}, // &&
-
-        {tok_or,          390}, // ||
-
-        {tok_assn,        380}, // =
-        {tok_mul_assn,    380}, // *=
-        {tok_div_assn,    380}, // /=
-        {tok_mod_assn,    380}, // %=
-        {tok_add_assn,    380}, // +=
-        {tok_sub_assn,    380}, // -=
-        {tok_lshift_assn, 380}, // <<=
-        {tok_rshift_assn, 380}, // >>=
-        {tok_and_assn,    380}, // &=
-        {tok_or_assn,     380}, // |=
-        {tok_xor_assn,    380}, // ^=
-};
+using namespace std;
+using namespace llvm;
 
 Parser::Parser(const string &source_name) : lexer(source_name) {
     advance();
@@ -115,12 +73,13 @@ void Parser::parse_global_var() {
         }
         auto type_name = lexer.get_word();
         if (type_map.contains(type_name)) {
-            auto type = get_llvm_type(context.get(), type_map[type_name]);
-            auto init_val = llvm::ConstantInt::get(type, 0);
-            auto global_var = new GlobalVariable(*module, type, false, GlobalVariable::ExternalLinkage, init_val, var_name);
-//            if (global_var_map.contains(var_name))
-//                lexer.log_cur_token("변수가 재 정의 되었습니다.");
-//            global_var_map[var_name] = type_map[type_name];
+            int type_num = type_map[type_name];
+            auto type = get_llvm_type(context.get(), type_num);
+            auto init_val = type_num == 0 ? llvm::ConstantInt::get(type, 0) : llvm::ConstantFP::get(type, 0);
+            auto global_var = new llvm::GlobalVariable(*module, type, false, GlobalVariable::ExternalLinkage, init_val, var_name);
+            if (global_var_map.contains(var_name))
+                lexer.log_cur_token("변수가 다시 정의되었습니다.");
+            global_var_map[var_name] = type_num;
             advance();
         } else {
             lexer.log_cur_token("존재하지 않는 타입입니다");
@@ -170,7 +129,10 @@ unique_ptr<FuncAST> Parser::parse_func_def(string &func_name) {
         //parse_primary();
         before = cur_tok;
     }
-    return make_unique<FuncAST>(std::move(func_name), return_type, std::move(params), std::make_unique<ImmIntAST>(0));
+
+    auto func_proto = make_unique<FuncProtoAST>(std::move(func_name), return_type, std::move(params));
+
+    return make_unique<FuncAST>(std::move(func_proto), std::make_unique<ImmIntAST>(0));
 }
 
 vector<VariableAST> Parser::parse_parameter() {
@@ -277,4 +239,47 @@ unique_ptr<AST> Parser::parse_identifier() {
     }
 }
 
+std::unordered_map<Token, int> Parser::op_prec_map = {
+        {tok_bitnot,      490}, // ~
+        {tok_not,         490}, // !
 
+        {tok_mul,         480}, // *
+        {tok_div,         480}, // /
+        {tok_mod,         480}, // %
+
+        {tok_add,         470}, // +
+        {tok_sub,         470}, // -
+
+        {tok_lshift,      460}, // <<
+        {tok_rshift,      460}, // >>
+
+        {tok_lt,          450}, // <
+        {tok_gt,          450}, // >
+        {tok_lteq,        450}, // <=
+        {tok_gteq,        450}, // >=
+
+        {tok_eq,          440}, // ==
+        {tok_ineq,        440}, // !=
+
+        {tok_bitand,      430}, // &
+
+        {tok_bitxor,      420}, // ^
+
+        {tok_bitor,       410}, // |
+
+        {tok_and,         400}, // &&
+
+        {tok_or,          390}, // ||
+
+        {tok_assn,        380}, // =
+        {tok_mul_assn,    380}, // *=
+        {tok_div_assn,    380}, // /=
+        {tok_mod_assn,    380}, // %=
+        {tok_add_assn,    380}, // +=
+        {tok_sub_assn,    380}, // -=
+        {tok_lshift_assn, 380}, // <<=
+        {tok_rshift_assn, 380}, // >>=
+        {tok_and_assn,    380}, // &=
+        {tok_or_assn,     380}, // |=
+        {tok_xor_assn,    380}, // ^=
+};

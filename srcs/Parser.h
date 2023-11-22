@@ -17,19 +17,16 @@
 #include "Lexer.h"
 #include "AST.h"
 
-using namespace std;
-using namespace llvm;
-
 class Parser {
 public:
-    explicit Parser(const string &source_name);
+    explicit Parser(const std::string &source_name);
 
     void parse();
 
 private:
-    unique_ptr<LLVMContext> context;
-    unique_ptr<Module> module;
-    unique_ptr<IRBuilder<>> builder;
+    std::unique_ptr<llvm::LLVMContext> context;
+    std::unique_ptr<llvm::Module> module;
+    std::unique_ptr<llvm::IRBuilder<>> builder;
 
     Lexer lexer;
 
@@ -39,31 +36,33 @@ private:
 
     void parse_global_var();
 
-    unique_ptr<FuncAST> parse_func_def(string &func_name);
+    std::unique_ptr<FuncAST> parse_func_def(std::string &func_name);
 
-    vector<VariableAST> parse_parameter();
+    std::vector<VariableAST> parse_parameter();
 
-    unique_ptr<AST> parse_expr();
+    std::unique_ptr<AST> parse_expr();
 
-    unique_ptr<AST> parse_bin_op(int prev_prec, unique_ptr<AST> left);
+    std::unique_ptr<AST> parse_bin_op(int prev_prec, std::unique_ptr<AST> left);
 
-    unique_ptr<AST> parse_primary();
+    std::unique_ptr<AST> parse_primary();
 
-    unique_ptr<AST> parse_identifier();
+    std::unique_ptr<AST> parse_identifier();
 
-    unique_ptr<AST> parse_par();
+    std::unique_ptr<AST> parse_par();
 
     void advance();
 
     int get_op_prec();
 
-    map<string, int> type_map = {
+    std::map<std::string, int> global_var_map;
+
+    std::map<std::string, int> type_map = {
             {"수",  0},
             {"소수", 1},
             {"글",  2}
     };
 
-    static unordered_map<Token, int> op_prec_map; //연산자 우선순위 맵
+    static std::unordered_map<Token, int> op_prec_map; //연산자 우선순위 맵
 };
 
 
