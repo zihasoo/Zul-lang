@@ -91,7 +91,7 @@ public:
 
     Token get_token(); //현재 입력 스트림에서 토큰 타입(enum) 얻기
 
-    std::string get_word(); //last_word getter
+    std::string& get_word(); //last_word getter
 
     std::pair<int, int> get_cur_loc(); //cur_loc getter
 
@@ -99,7 +99,7 @@ public:
 
     void log_cur_token(std::string msg);  //현재 토큰을 기반으로 에러를 로깅함
 
-    void log_cur_token(const std::initializer_list<std::string_view>& msg); //에러 메시지 여러개 받는 오버로드
+    void log_cur_token(const std::initializer_list<std::string_view>& msgs); //분할 된 메세지를 받는 오버로드
 
     static std::string token_to_string(Token token);
 

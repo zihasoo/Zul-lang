@@ -24,9 +24,7 @@ public:
     void parse();
 
 private:
-    std::unique_ptr<llvm::LLVMContext> context;
-    std::unique_ptr<llvm::Module> module;
-    std::unique_ptr<llvm::IRBuilder<>> builder;
+    IRTools ir_tools;
 
     Lexer lexer;
 
@@ -54,7 +52,9 @@ private:
 
     int get_op_prec();
 
-    std::map<std::string, int> global_var_map;
+    std::map<std::string, llvm::GlobalVariable*> global_var_map;
+
+    std::map<std::string, std::unique_ptr<FuncProtoAST>> func_proto_map;
 
     std::map<std::string, int> type_map = {
             {"수",  0},

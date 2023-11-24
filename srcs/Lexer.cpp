@@ -25,18 +25,8 @@ void Lexer::log_cur_token(string msg) {
     System::logger.log_error(token_start_loc, last_word.size(), std::move(msg));
 }
 
-void Lexer::log_cur_token(const std::initializer_list<std::string_view> &msg) {
-    //매모리의 반복 재할당을 막기 위해 initializer_list로 받고 한 번에 할당
-    string str;
-    int size = 0;
-    for (const auto &x: msg) {
-        size += x.size();
-    }
-    str.reserve(size);
-    for (const auto &x: msg) {
-        str.append(x);
-    }
-    System::logger.log_error(token_start_loc, last_word.size(), std::move(str));
+void Lexer::log_cur_token(const std::initializer_list<std::string_view> &msgs) {
+    System::logger.log_error(token_start_loc, last_word.size(), msgs);
 }
 
 void Lexer::advance() {
@@ -115,7 +105,7 @@ Token Lexer::get_token() {
     }
 
     last_word.clear();
-    while (isspace(last_char))
+    while (last_char != '\n' && isspace(last_char))
         advance();
 
     token_start_loc = cur_loc;
@@ -183,7 +173,7 @@ Token Lexer::get_token() {
     return token_map[last_word];
 }
 
-string Lexer::get_word() {
+string& Lexer::get_word() {
     return last_word;
 }
 

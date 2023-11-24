@@ -1,12 +1,12 @@
 #include "Utility.h"
 
-llvm::Type *get_llvm_type(llvm::LLVMContext *context, int type_num) {
+llvm::Type *get_llvm_type(llvm::LLVMContext& context, int type_num) {
     if (type_num == 0) {
-        return llvm::Type::getInt64Ty(*context);
+        return llvm::Type::getInt64Ty(context);
     } else if (type_num == 1) {
-        return llvm::Type::getDoubleTy(*context);
+        return llvm::Type::getDoubleTy(context);
     } else {
-        return llvm::Type::getVoidTy(*context);
+        return llvm::Type::getVoidTy(context);
     }
 }
 

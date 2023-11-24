@@ -4,7 +4,6 @@
 #include <string>
 #include <memory>
 #include <utility>
-#include <format>
 #include <vector>
 
 #include "llvm/ADT/APFloat.h"
@@ -21,13 +20,17 @@
 
 #include "Lexer.h"
 
+struct IRTools {
+    llvm::LLVMContext context;
+    llvm::Module module{ "zul", context };
+    llvm::IRBuilder<> builder{context};
+};
+
 struct AST {
 public:
     virtual ~AST() = default;
 
-    virtual llvm::Value *code_gen(llvm::LLVMContext *context) {
-        return nullptr;
-    };
+    virtual llvm::Value *code_gen(IRTools &ir_tools) = 0;
 };
 
 struct ImmRealAST : public AST {
@@ -35,8 +38,8 @@ struct ImmRealAST : public AST {
 
     explicit ImmRealAST(double val) : val(val) {}
 
-    llvm::Value *code_gen(llvm::LLVMContext *context) override {
-        return llvm::ConstantFP::get(*context, llvm::APFloat(val));
+    llvm::Value *code_gen(IRTools &ir_tools) override {
+        return llvm::ConstantFP::get(ir_tools.context, llvm::APFloat(val));
     }
 };
 
@@ -45,8 +48,8 @@ struct ImmIntAST : public AST {
 
     explicit ImmIntAST(long long val) : val(val) {}
 
-    llvm::Value *code_gen(llvm::LLVMContext *context) override {
-        return llvm::ConstantInt::get(*context, llvm::APInt(64, val, true));
+    llvm::Value *code_gen(IRTools &ir_tools) override {
+        return llvm::ConstantInt::get(ir_tools.context, llvm::APInt(64, val, true));
     }
 };
 
@@ -55,7 +58,7 @@ struct ImmStringAST : public AST {
 
     explicit ImmStringAST(std::string val) : val(std::move(val)) {}
 
-    llvm::Value *code_gen(llvm::LLVMContext *context) override {
+    llvm::Value *code_gen(IRTools &ir_tools) override {
         return nullptr;
     }
 };
@@ -66,7 +69,7 @@ struct VariableAST : public AST {
 
     VariableAST(std::string name, int type) : name(std::move(name)), type(type) {}
 
-    llvm::Value *code_gen(llvm::LLVMContext *context) override {
+    llvm::Value *code_gen(IRTools &ir_tools) override {
         return nullptr;
     }
 };
@@ -78,11 +81,77 @@ struct BinOpAST : public AST {
     BinOpAST(std::unique_ptr<AST> left, std::unique_ptr<AST> right, Token op) : left(std::move(left)),
                                                                                 right(std::move(right)), op(op) {}
 
-    llvm::Value *code_gen(llvm::LLVMContext *context) override {
-        auto l = left->code_gen(context);
-        auto r = right->code_gen(context);
+    llvm::Value *code_gen(IRTools &ir_tools) override {
+        auto l = left->code_gen(ir_tools);
+        auto r = right->code_gen(ir_tools);
         if (!l || !r)
             return nullptr;
+        switch (op) {
+            case tok_add:
+                break;
+            case tok_sub:
+                break;
+            case tok_mul:
+                break;
+            case tok_div:
+                break;
+            case tok_mod:
+                break;
+            case tok_and:
+                break;
+            case tok_or:
+                break;
+            case tok_not:
+                break;
+            case tok_bitand:
+                break;
+            case tok_bitor:
+                break;
+            case tok_bitnot:
+                break;
+            case tok_bitxor:
+                break;
+            case tok_lshift:
+                break;
+            case tok_rshift:
+                break;
+            case tok_assn:
+                break;
+            case tok_mul_assn:
+                break;
+            case tok_div_assn:
+                break;
+            case tok_mod_assn:
+                break;
+            case tok_add_assn:
+                break;
+            case tok_sub_assn:
+                break;
+            case tok_lshift_assn:
+                break;
+            case tok_rshift_assn:
+                break;
+            case tok_and_assn:
+                break;
+            case tok_or_assn:
+                break;
+            case tok_xor_assn:
+                break;
+            case tok_eq:
+                break;
+            case tok_ineq:
+                break;
+            case tok_gt:
+                break;
+            case tok_gteq:
+                break;
+            case tok_lt:
+                break;
+            case tok_lteq:
+                break;
+            default:
+                return nullptr;
+        }
         return nullptr;
     }
 };
@@ -100,6 +169,18 @@ struct FuncCallAST : public AST {
 
     FuncCallAST(std::string name, std::vector<std::unique_ptr<AST>> args)
             : name(std::move(name)), args(std::move(args)) {}
+
+    llvm::Value *code_gen(IRTools &ir_tools) override {
+        auto target_func = ir_tools.module.getFunction(name);
+        std::vector<llvm::Value *> arg_values;
+        arg_values.reserve(args.size());
+        for (const auto & arg : args) {
+            arg_values.push_back(arg->code_gen(ir_tools));
+            if (!arg_values.back())
+                return nullptr;
+        }
+        return ir_tools.builder.CreateCall(target_func, arg_values, "calltmp");
+    }
 };
 
 struct FuncProtoAST {
@@ -110,14 +191,14 @@ struct FuncProtoAST {
     FuncProtoAST(std::string name, int return_type, std::vector<VariableAST> params) :
             name(std::move(name)), return_type(return_type), params(std::move(params)) {}
 
-    llvm::Function *code_gen(llvm::LLVMContext *context, llvm::Module *module) {
+    llvm::Function *code_gen(IRTools &ir_tools) {
         std::vector<llvm::Type *> param_types;
         param_types.reserve(params.size());
         for (auto &param: params) {
-            param_types.emplace_back(get_llvm_type(context, param.type));
+            param_types.emplace_back(get_llvm_type(ir_tools.context, param.type));
         }
-        auto func_type = llvm::FunctionType::get(get_llvm_type(context, return_type), param_types, false);
-        auto llvm_func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, name, *module);
+        auto func_type = llvm::FunctionType::get(get_llvm_type(ir_tools.context, return_type), param_types, false);
+        auto llvm_func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, name, ir_tools.module);
         int i = 0;
         for (auto &arg: llvm_func->args()) {
             arg.setName(params[i].name);
@@ -127,15 +208,19 @@ struct FuncProtoAST {
 };
 
 struct FuncAST {
-    std::unique_ptr<FuncProtoAST> proto;
-    std::unique_ptr<AST> body;
+    FuncProtoAST* proto;
+    std::vector<std::unique_ptr<AST>> body;
 
-    FuncAST(std::unique_ptr<FuncProtoAST> proto, std::unique_ptr<AST> body) : proto(std::move(proto)), body(std::move(body)) {}
+    FuncAST(FuncProtoAST* proto, std::vector<std::unique_ptr<AST>> body) : proto(proto),
+                                                                              body(std::move(body)) {}
 
-    llvm::Function *code_gen(llvm::LLVMContext *context, llvm::Module *module, llvm::IRBuilder<> *builder) {
-        auto llvm_func = proto->code_gen(context, module);
-        auto bb = llvm::BasicBlock::Create(*context, "entry", llvm_func);
-        builder->SetInsertPoint(bb);
+    llvm::Function *code_gen(IRTools &ir_tools) {
+        auto llvm_func = proto->code_gen(ir_tools);
+        auto bb = llvm::BasicBlock::Create(ir_tools.context, "entry", llvm_func);
+        ir_tools.builder.SetInsertPoint(bb);
+
+        for (auto& ast : body)
+            ast->code_gen(ir_tools);
 
         llvm::verifyFunction(*llvm_func);
 

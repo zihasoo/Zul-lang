@@ -33,7 +33,9 @@ public:
 
     void log_error(std::pair<int, int> loc, int word_size, std::string &&msg);
 
-    void log_error(const LogInfo &log_info);
+    void log_error(std::pair<int, int> loc, int word_size, const std::initializer_list<std::string_view> &msgs);
+
+    void log_error(LogInfo &&log_info);
 
     void register_line(int line_num, std::string &&line);
 
