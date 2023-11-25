@@ -24,6 +24,7 @@ struct IRTools {
     llvm::LLVMContext context;
     llvm::Module module{ "zul", context };
     llvm::IRBuilder<> builder{context};
+    std::map<std::string, llvm::GlobalVariable*> global_var_map;
 };
 
 struct AST {
@@ -70,7 +71,11 @@ struct VariableAST : public AST {
     VariableAST(std::string name, int type) : name(std::move(name)), type(type) {}
 
     llvm::Value *code_gen(IRTools &ir_tools) override {
-        return nullptr;
+        if (!ir_tools.global_var_map.contains(name)) {
+            return nullptr;
+        }
+        auto load = ir_tools.builder.CreateLoad(get_llvm_type(ir_tools.context, type), ir_tools.global_var_map[name], name + "load");
+        return load;
     }
 };
 

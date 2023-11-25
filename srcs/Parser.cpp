@@ -71,7 +71,7 @@ void Parser::parse_global_var() {
         }
         auto type_name = lexer.get_word();
         if (type_map.contains(type_name)) {
-            if (global_var_map.contains(var_name)) {
+            if (ir_tools.global_var_map.contains(var_name)) {
                 lexer.log_cur_token("변수가 다시 정의되었습니다.");
                 advance();
                 return;
@@ -79,7 +79,7 @@ void Parser::parse_global_var() {
             int type_num = type_map[type_name];
             auto type = get_llvm_type(ir_tools.context, type_num);
             auto init_val = type_num == 0 ? llvm::ConstantInt::get(type, 0) : llvm::ConstantFP::get(type, 0);
-            global_var_map.emplace(var_name, new GlobalVariable(
+            ir_tools.global_var_map.emplace(var_name, new GlobalVariable(
                     ir_tools.module, type, false, GlobalVariable::ExternalLinkage, init_val, var_name));
             advance();
         } else {
@@ -123,19 +123,24 @@ unique_ptr<FuncAST> Parser::parse_func_def(string &func_name) {
 
     func_proto_map.emplace(func_name, make_unique<FuncProtoAST>(func_name, return_type, std::move(params)));
 
-    Token before = cur_tok;
+    Token before_tok = cur_tok;
     vector<unique_ptr<AST>> func_body;
     advance();
     while (true) {
         if (cur_tok == tok_eof)
             break;
-        if (before == tok_newline && cur_tok != tok_newline && cur_tok != tok_indent)
+        if (cur_tok == tok_newline) {
+            before_tok = cur_tok;
+            advance();
+            continue;
+        }
+        if (before_tok == tok_newline && cur_tok != tok_indent)
             break;
         auto expr = parse_expr();
         if (!expr)
             return nullptr;
         func_body.push_back(std::move(expr));
-        before = cur_tok;
+        before_tok = cur_tok;
         advance();
     }
 

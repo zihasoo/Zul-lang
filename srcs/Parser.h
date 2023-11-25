@@ -52,8 +52,6 @@ private:
 
     int get_op_prec();
 
-    std::map<std::string, llvm::GlobalVariable*> global_var_map;
-
     std::map<std::string, std::unique_ptr<FuncProtoAST>> func_proto_map;
 
     std::map<std::string, int> type_map = {

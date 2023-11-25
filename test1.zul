@@ -1,8 +1,9 @@
 
-변수1: 수
-변수2: 소수
+var1: 수
+var2: 소수
 
-
+ㅎㅇ fun(arg: 수) 수:
+    var1
 
 ㅎㅇ main() 수:
-    main()
+    fun(var1)
