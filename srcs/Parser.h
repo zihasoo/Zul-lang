@@ -24,7 +24,7 @@ public:
     void parse();
 
 private:
-    IRTools ir_tools;
+    ZulContext zulctx;
 
     Lexer lexer;
 
@@ -34,17 +34,21 @@ private:
 
     void parse_global_var();
 
-    std::unique_ptr<FuncAST> parse_func_def(std::string &func_name);
+    void parse_func_def(std::string &func_name);
 
-    std::vector<VariableAST> parse_parameter();
+    std::vector<std::pair<std::string, int>> parse_parameter();
 
     std::unique_ptr<AST> parse_expr();
+
+    std::unique_ptr<AST> parse_expr_start(LocalVarMap *local_var_map);
 
     std::unique_ptr<AST> parse_bin_op(int prev_prec, std::unique_ptr<AST> left);
 
     std::unique_ptr<AST> parse_primary();
 
     std::unique_ptr<AST> parse_identifier();
+
+    std::unique_ptr<AST> parse_identifier(std::string &name, std::pair<int, int> name_loc);
 
     std::unique_ptr<AST> parse_par();
 
@@ -55,9 +59,10 @@ private:
     std::map<std::string, std::unique_ptr<FuncProtoAST>> func_proto_map;
 
     std::map<std::string, int> type_map = {
-            {"수",  0},
-            {"소수", 1},
-            {"글",  2}
+            {"글자", 0},
+            {"수",  1},
+            {"소수", 2},
+            {"글",  3}
     };
 
     static std::unordered_map<Token, int> op_prec_map; //연산자 우선순위 맵

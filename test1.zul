@@ -3,7 +3,9 @@ var1: 수
 var2: 소수
 
 ㅎㅇ fun(arg: 수) 수:
-    var1
+    v1: 글자
+    v2: 수
+    v3 = var1 - v2 + v1
 
 ㅎㅇ main() 수:
     fun(var1)

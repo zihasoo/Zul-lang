@@ -1,12 +1,28 @@
+#include <llvm/IR/Constants.h>
 #include "Utility.h"
 
-llvm::Type *get_llvm_type(llvm::LLVMContext& context, int type_num) {
-    if (type_num == 0) {
-        return llvm::Type::getInt64Ty(context);
-    } else if (type_num == 1) {
-        return llvm::Type::getDoubleTy(context);
-    } else {
-        return llvm::Type::getVoidTy(context);
+llvm::Constant *get_llvm_constant(llvm::Type *llvm_type, int type_num) {
+    switch (type_num) {
+        case 0:
+        case 1:
+            return llvm::ConstantInt::get(llvm_type, 0);
+        case 2:
+            return llvm::ConstantFP::get(llvm_type, 0);
+        default:
+            return nullptr;
+    }
+}
+
+llvm::Type *get_llvm_type(llvm::LLVMContext &context, int type_num) {
+    switch (type_num) {
+        case 0:
+            return llvm::Type::getInt8Ty(context);
+        case 1:
+            return llvm::Type::getInt64Ty(context);
+        case 2:
+            return llvm::Type::getDoubleTy(context);
+        default:
+            return llvm::Type::getVoidTy(context);
     }
 }
 
