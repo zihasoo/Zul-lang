@@ -40,7 +40,7 @@ private:
 
     std::unique_ptr<AST> parse_expr();
 
-    std::unique_ptr<AST> parse_expr_start(LocalVarMap *local_var_map);
+    std::unique_ptr<AST> parse_expr_start(LocalVarMap &local_var_map);
 
     std::unique_ptr<AST> parse_bin_op(int prev_prec, std::unique_ptr<AST> left);
 

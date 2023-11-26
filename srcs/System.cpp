@@ -35,7 +35,7 @@ void System::parse_arg(int argc, char **argv) {
     }
 
     if (output_name.empty()) {
-        output_name = source_name.substr(0, source_name.rfind('.') + 1) + "exe";
+        output_name = source_name.substr(0, source_name.rfind('.') + 1) + "ll";
     }
 
     logger.set_source_name(source_name);
