@@ -10,7 +10,10 @@
 #include <string>
 #include <string_view>
 
-llvm::Constant *get_llvm_constant(llvm::Type *llvm_type, int type_num);
+#define BOOL_TYPEID 0 //기본 타입의 시작 번호
+#define FLOAT_TYPEID 3 //기본 타입의 끝 번호
+
+llvm::Constant *get_const_zero(llvm::Type *llvm_type, int type_num);
 
 llvm::Type *get_llvm_type(llvm::LLVMContext &context, int type_num);
 

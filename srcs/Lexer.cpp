@@ -100,7 +100,8 @@ Token Lexer::get_token() {
         }
         is_line_start = false;
         if (0 < last_word.size() && last_word.size() < 4) {
-            log_cur_token("들여쓰기가 잘못되었습니다");
+            log_cur_token("잘못된 들여쓰기입니다");
+            return tok_indent;
         }
     }
 

@@ -1,12 +1,11 @@
 #include <llvm/IR/Constants.h>
 #include "Utility.h"
 
-llvm::Constant *get_llvm_constant(llvm::Type *llvm_type, int type_num) {
+llvm::Constant *get_const_zero(llvm::Type *llvm_type, int type_num) {
     switch (type_num) {
-        case 0:
-        case 1:
-            return llvm::ConstantInt::get(llvm_type, 0);
-        case 2:
+        case BOOL_TYPEID ... 2:
+            return llvm::ConstantInt::get(llvm_type, 0, true);
+        case FLOAT_TYPEID:
             return llvm::ConstantFP::get(llvm_type, 0);
         default:
             return nullptr;
@@ -15,11 +14,13 @@ llvm::Constant *get_llvm_constant(llvm::Type *llvm_type, int type_num) {
 
 llvm::Type *get_llvm_type(llvm::LLVMContext &context, int type_num) {
     switch (type_num) {
-        case 0:
-            return llvm::Type::getInt8Ty(context);
+        case BOOL_TYPEID:
+            return llvm::Type::getInt1Ty(context);
         case 1:
-            return llvm::Type::getInt64Ty(context);
+            return llvm::Type::getInt8Ty(context);
         case 2:
+            return llvm::Type::getInt64Ty(context);
+        case FLOAT_TYPEID:
             return llvm::Type::getDoubleTy(context);
         default:
             return llvm::Type::getVoidTy(context);
