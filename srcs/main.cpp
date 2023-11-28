@@ -10,10 +10,21 @@
 
 using namespace std;
 
+extern "C" __declspec(dllexport) void puti(long long x) {
+    printf("%lld",x);
+}
+
+extern "C" __declspec(dllexport) void putd(double x) {
+    printf("%lf", x);
+}
+
 int main(int argc, char *argv[]) {
     System::parse_arg(argc, argv);
     Parser parser{System::source_name};
     parser.parse();
+
+    if (System::logger.has_error())
+        return 0;
 
     llvm::InitLLVM X(argc, argv);
 

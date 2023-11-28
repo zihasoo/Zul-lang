@@ -63,19 +63,23 @@ public:
 
 struct FuncProtoAST {
     std::string name;
-    int return_type;
+    int return_type = -1;
+    bool has_body = true;
     std::vector<std::pair<std::string, int>> params;
 
     FuncProtoAST() = default;
 
-    FuncProtoAST(std::string name, int return_type, std::vector<std::pair<std::string, int>> params);
+    FuncProtoAST(std::string name, int return_type, std::vector<std::pair<std::string, int>> params,
+                 bool has_body = true);
 
     llvm::Function *code_gen(ZulContext &zulctx);
 };
 
 struct FuncRetAST : public AST {
-    FuncProtoAST &proto;
+    Capture<int> return_type;
     std::unique_ptr<AST> body;
+
+    FuncRetAST(std::unique_ptr<AST> body, Capture<int> return_type);
 
     ZulValue code_gen(ZulContext &zulctx) override;
 };

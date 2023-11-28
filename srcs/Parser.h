@@ -41,7 +41,7 @@ private:
 
     std::vector<std::pair<std::string, int>> parse_parameter();
 
-    std::unique_ptr<AST> parse_expr_start();
+    std::unique_ptr<AST> parse_expr_start(std::string& name);
 
     std::unique_ptr<AST> parse_local_var(std::string &name, std::pair<int, int> name_loc);
 

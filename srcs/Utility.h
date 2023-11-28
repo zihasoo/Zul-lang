@@ -41,6 +41,8 @@ Capture<T> make_capture(T value, Lexer &lexer) {
 
 llvm::Constant *get_const_zero(llvm::Type *llvm_type, int type_num);
 
+llvm::Constant *get_const_zero(llvm::LLVMContext &context, int type_num);
+
 llvm::Type *get_llvm_type(llvm::LLVMContext &context, int type_num);
 
 int get_byte_count(int c);

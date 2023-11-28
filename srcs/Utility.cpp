@@ -2,12 +2,17 @@
 #include "Utility.h"
 
 std::map<int, std::string> type_name_map = {
+        {-1, "없음"},
         {0, "논리"},
         {1, "글자"},
         {2, "수"},
         {3, "소수"},
         {4, "글"}
 };
+
+llvm::Constant *get_const_zero(llvm::LLVMContext &context, int type_num) {
+    return get_const_zero(get_llvm_type(context, type_num), type_num);
+}
 
 llvm::Constant *get_const_zero(llvm::Type *llvm_type, int type_num) {
     switch (type_num) {

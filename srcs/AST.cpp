@@ -24,7 +24,7 @@ bool create_cast(ZulContext &zulctx, ZulValue &target, int dest_type_id) {
         if (target.type_id == FLOAT_TYPEID) {
             target.value = zulctx.builder.CreateFPToSI(target.value, dest_type);
         } else {
-            target.value = zulctx.builder.CreateIntCast(target.value, dest_type, true);
+            target.value = zulctx.builder.CreateIntCast(target.value, dest_type, target.type_id != BOOL_TYPEID);
         }
     } else {
         cast = false;
@@ -118,8 +118,8 @@ bool is_cmp(Token op) {
     }
 }
 
-FuncProtoAST::FuncProtoAST(string name, int return_type, vector<pair<string, int>> params) :
-        name(std::move(name)), return_type(return_type), params(std::move(params)) {}
+FuncProtoAST::FuncProtoAST(string name, int return_type, vector<pair<string, int>> params, bool has_body) :
+        name(std::move(name)), return_type(return_type), params(std::move(params)), has_body(has_body) {}
 
 llvm::Function *FuncProtoAST::code_gen(ZulContext &zulctx) {
     vector<llvm::Type *> param_types;
@@ -136,13 +136,21 @@ llvm::Function *FuncProtoAST::code_gen(ZulContext &zulctx) {
     return llvm_func;
 }
 
+FuncRetAST::FuncRetAST(std::unique_ptr<AST> body, Capture<int> return_type) :
+        body(std::move(body)), return_type(std::move(return_type)) {}
+
 ZulValue FuncRetAST::code_gen(ZulContext &zulctx) {
     auto body_value = body->code_gen(zulctx);
     if (!body_value.value)
         return nullzul;
-    int return_type = body_value.type_id;
+    if (return_type.value != body_value.type_id && !create_cast(zulctx, body_value, return_type.value)) {
+        System::logger.log_error(return_type.loc, return_type.word_size,
+                                 {"리턴 타입이 일치하지 않습니다. 반환 구문의 타입 \"", type_name_map[body_value.type_id],
+                                  "\" 에서 리턴 타입 \"", type_name_map[return_type.value], "\" 로 캐스팅 할 수 없습니다"});
+    }
 
-    return nullzul;
+    auto ret = zulctx.builder.CreateRet(body_value.value);
+    return {ret, body_value.type_id};
 }
 
 ImmIntAST::ImmIntAST(long long int val) : val(val) {}
@@ -221,9 +229,9 @@ ZulValue VariableDeclAST::code_gen(ZulContext &zulctx) {
     } else { //새로운 변수면 스택 할당 구문 추가
         auto func = zulctx.builder.GetInsertBlock()->getParent();
         llvm::IRBuilder<> temp_builder(&func->getEntryBlock(), func->getEntryBlock().begin());
-        auto alloca = temp_builder.CreateAlloca(get_llvm_type(*zulctx.context, type), nullptr, name.value);
-        zulctx.local_var_map.emplace(name.value, make_pair(alloca, type));
-        target = alloca;
+        auto alloca_val = temp_builder.CreateAlloca(get_llvm_type(*zulctx.context, type), nullptr, name.value);
+        zulctx.local_var_map.emplace(name.value, make_pair(alloca_val, type));
+        target = alloca_val;
     }
     if (body)
         zulctx.builder.CreateStore(init_val.value, target);
@@ -281,8 +289,8 @@ ZulValue VariableAssnAST::code_gen(ZulContext &zulctx) {
 }
 
 BinOpAST::BinOpAST(unique_ptr<AST> left, unique_ptr<AST> right, Capture<Token> op) : left(std::move(left)),
-                                                                                               right(std::move(right)),
-                                                                                               op(std::move(op)) {}
+                                                                                     right(std::move(right)),
+                                                                                     op(std::move(op)) {}
 
 ZulValue BinOpAST::code_gen(ZulContext &zulctx) {
     auto lhs = left->code_gen(zulctx);
