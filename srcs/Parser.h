@@ -11,6 +11,7 @@
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Value.h"
+#include "llvm/TargetParser/Host.h"
 
 #include "System.h"
 #include "Utility.h"
@@ -22,6 +23,8 @@ public:
     explicit Parser(const std::string &source_name);
 
     void parse();
+
+    ZulContext& get_zulctx();
 
 private:
     ZulContext zulctx;
@@ -56,11 +59,13 @@ private:
 
     std::unique_ptr<AST> parse_par();
 
+    std::unique_ptr<ImmStrAST> parse_str();
+
     void advance();
 
     int get_op_prec();
 
-    std::map<std::string, std::unique_ptr<FuncProtoAST>> func_proto_map;
+    std::map<std::string, FuncProtoAST> func_proto_map;
 
     std::map<std::string, int> type_map = {
             {"논리", 0},

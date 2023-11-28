@@ -34,47 +34,40 @@ void Lexer::advance() {
     cur_loc.second++;
     raw_last_char.clear();
     raw_last_char.push_back(last_char);
-    if (last_char == '\n' || last_char == EOF) {
-        System::logger.register_line(cur_loc.first, std::move(cur_line));
-        cur_line.reserve(80);
-    } else {
+    cur_line.push_back(last_char);
+    int ret = last_char;
+    if ((last_char & 0xE0) == 0xC0) {
+        ret = (last_char & 0x1F) << 6;
+        last_char = source.get();
         cur_line.push_back(last_char);
-        int ret = 0;
-        if ((last_char & 0x80) == 0) {
-            ret = last_char;
-        } else if ((last_char & 0xE0) == 0xC0) {
-            ret = (last_char & 0x1F) << 6;
-            last_char = source.get();
-            cur_line.push_back(last_char);
-            raw_last_char.push_back(last_char);
-            ret |= (last_char & 0x3F);
-        } else if ((last_char & 0xF0) == 0xE0) {
-            ret = (last_char & 0xF) << 12;
-            last_char = source.get();
-            cur_line.push_back(last_char);
-            raw_last_char.push_back(last_char);
-            ret |= (last_char & 0x3F) << 6;
-            last_char = source.get();
-            cur_line.push_back(last_char);
-            raw_last_char.push_back(last_char);
-            ret |= (last_char & 0x3F);
-        } else if ((last_char & 0xF8) == 0xF0) {
-            ret = (last_char & 0x7) << 18;
-            last_char = source.get();
-            cur_line.push_back(last_char);
-            raw_last_char.push_back(last_char);
-            ret |= (last_char & 0x3F) << 12;
-            last_char = source.get();
-            cur_line.push_back(last_char);
-            raw_last_char.push_back(last_char);
-            ret |= (last_char & 0x3F) << 6;
-            last_char = source.get();
-            cur_line.push_back(last_char);
-            raw_last_char.push_back(last_char);
-            ret |= (last_char & 0x3F);
-        }
-        last_char = ret;
+        raw_last_char.push_back(last_char);
+        ret |= (last_char & 0x3F);
+    } else if ((last_char & 0xF0) == 0xE0) {
+        ret = (last_char & 0xF) << 12;
+        last_char = source.get();
+        cur_line.push_back(last_char);
+        raw_last_char.push_back(last_char);
+        ret |= (last_char & 0x3F) << 6;
+        last_char = source.get();
+        cur_line.push_back(last_char);
+        raw_last_char.push_back(last_char);
+        ret |= (last_char & 0x3F);
+    } else if ((last_char & 0xF8) == 0xF0) {
+        ret = (last_char & 0x7) << 18;
+        last_char = source.get();
+        cur_line.push_back(last_char);
+        raw_last_char.push_back(last_char);
+        ret |= (last_char & 0x3F) << 12;
+        last_char = source.get();
+        cur_line.push_back(last_char);
+        raw_last_char.push_back(last_char);
+        ret |= (last_char & 0x3F) << 6;
+        last_char = source.get();
+        cur_line.push_back(last_char);
+        raw_last_char.push_back(last_char);
+        ret |= (last_char & 0x3F);
     }
+    last_char = ret;
 }
 
 Token Lexer::get_token() {
@@ -84,6 +77,8 @@ Token Lexer::get_token() {
     token_start_loc = cur_loc;
     if (last_char == '\n') {
         is_line_start = true;
+        System::logger.register_line(cur_loc.first, std::move(cur_line));
+        cur_line.reserve(80);
         cur_loc.first++;
         cur_loc.second = 0;
         last_word.push_back(last_char);
@@ -148,6 +143,7 @@ Token Lexer::get_token() {
     }
 
     if (last_char == EOF) {
+        System::logger.register_line(cur_loc.first, std::move(cur_line));
         return tok_eof;
     }
 
@@ -174,7 +170,7 @@ Token Lexer::get_token() {
     return token_map[last_word];
 }
 
-string& Lexer::get_word() {
+string &Lexer::get_word() {
     return last_word;
 }
 
@@ -184,6 +180,14 @@ pair<int, int> Lexer::get_cur_loc() {
 
 pair<int, int> Lexer::get_token_start_loc() {
     return token_start_loc;
+}
+
+int Lexer::get_line_index() {
+    return cur_line.size() - raw_last_char.size() - 1;
+}
+
+std::string Lexer::get_line_substr(int st, int ed) {
+    return cur_line.substr(st, ed - st);
 }
 
 string Lexer::token_to_string(Token token) {

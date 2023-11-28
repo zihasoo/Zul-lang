@@ -13,4 +13,5 @@ add_executable(
         Parser.cpp
         Parser.h
         AST.h
+        AST.cpp
 )

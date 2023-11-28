@@ -1,12 +1,24 @@
 #include <llvm/IR/Constants.h>
 #include "Utility.h"
 
+std::map<int, std::string> type_name_map = {
+        {0, "논리"},
+        {1, "글자"},
+        {2, "수"},
+        {3, "소수"},
+        {4, "글"}
+};
+
 llvm::Constant *get_const_zero(llvm::Type *llvm_type, int type_num) {
     switch (type_num) {
-        case BOOL_TYPEID ... 2:
+        case BOOL_TYPEID:
+        case 1:
+        case 2:
             return llvm::ConstantInt::get(llvm_type, 0, true);
         case FLOAT_TYPEID:
             return llvm::ConstantFP::get(llvm_type, 0);
+        case 4:
+            return llvm::ConstantPointerNull::get(static_cast<llvm::PointerType *>(llvm_type));
         default:
             return nullptr;
     }
@@ -22,6 +34,8 @@ llvm::Type *get_llvm_type(llvm::LLVMContext &context, int type_num) {
             return llvm::Type::getInt64Ty(context);
         case FLOAT_TYPEID:
             return llvm::Type::getDoubleTy(context);
+        case 4:
+            return llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(context));
         default:
             return llvm::Type::getVoidTy(context);
     }

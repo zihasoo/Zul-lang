@@ -97,6 +97,10 @@ public:
 
     std::pair<int, int> get_token_start_loc(); //token_start_loc getter
 
+    int get_line_index();
+
+    std::string get_line_substr(int st, int ed);
+
     void log_cur_token(std::string msg);  //현재 토큰을 기반으로 에러를 로깅함
 
     void log_cur_token(const std::initializer_list<std::string_view>& msgs); //분할 된 메세지를 받는 오버로드

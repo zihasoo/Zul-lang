@@ -55,8 +55,7 @@ string Logger::indent(string_view line, int col) {
         byte = get_byte_count(line[i]);
         if (byte == 1) {
             ret.push_back(' ');
-        }
-        else {
+        } else {
             corr += byte - 1;
             ret.push_back('\xE3');
             ret.push_back('\x80');
@@ -79,9 +78,9 @@ void Logger::flush() {
         auto &log = buffer.top();
         clog << source_name << ' ' << log.row << ':' << log.col << ": 에러: " << log.msg << '\n';
         clog.width(5);
-        clog << log.row << " | " << line_map[log.row] << '\n'
-             << "      | " << indent(line_map[log.row], log.col - 1) << "^"
-             << tilde(log.word_size - 1) << '\n';
+        clog << log.row << " | " << line_map[log.row]
+             << "      | " << indent(line_map[log.row], log.col - 1)
+             << "^" << tilde(log.word_size - 1) << '\n';
         buffer.pop();
     }
     line_map.clear();
