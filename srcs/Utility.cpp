@@ -1,13 +1,16 @@
+#include <sstream>
+
 #include <llvm/IR/Constants.h>
+
 #include "Utility.h"
 
 std::map<int, std::string> type_name_map = {
         {-1, "없음"},
-        {0, "논리"},
-        {1, "글자"},
-        {2, "수"},
-        {3, "소수"},
-        {4, "글"}
+        {0,  "논리"},
+        {1,  "글자"},
+        {2,  "수"},
+        {3,  "소수"},
+        {4,  "글"}
 };
 
 llvm::Constant *get_const_zero(llvm::LLVMContext &context, int type_num) {

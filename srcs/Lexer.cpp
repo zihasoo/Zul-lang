@@ -116,18 +116,23 @@ Token Lexer::get_token() {
     }
 
     if (isnum(last_char) || last_char == '.') {
-        bool isreal = false, wrong = false;
+        bool isreal = false, wrong = false, digit = false;
         while (isnum(last_char) || last_char == '.') {
             if (last_char == '.') {
                 if (isreal)
                     wrong = true;
                 isreal = true;
             }
+            else
+                digit = true;
             last_word.append(raw_last_char);
             advance();
         }
+        if (last_word == "...")
+            return tok_va_arg;
         if (wrong) {
-            log_cur_token("잘못된 실수 표현입니다");
+            if (digit)
+                log_cur_token("잘못된 실수 표현입니다");
             return tok_undefined;
         }
         return isreal ? tok_real : tok_int;
@@ -204,6 +209,7 @@ unordered_map<string_view, Token> Lexer::token_map =
          {"\"",  tok_dquotes},
          {"'",   tok_squotes},
          {"//",  tok_anno},
+         {"...",  tok_va_arg},
 
          {"+",   tok_add},
          {"-",   tok_sub},

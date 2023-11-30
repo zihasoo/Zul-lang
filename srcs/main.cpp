@@ -7,7 +7,6 @@
 #include "System.h"
 #include "Parser.h"
 
-
 using namespace std;
 
 extern "C" __declspec(dllexport) void puti(long long x) {
@@ -25,7 +24,7 @@ int main(int argc, char *argv[]) {
 
     if (System::logger.has_error())
         return 0;
-
+#ifndef IS_MINGW
     llvm::InitLLVM X(argc, argv);
 
     llvm::InitializeNativeTarget();
@@ -44,6 +43,6 @@ int main(int argc, char *argv[]) {
     long long (*zul_main)() = zul_main_addr.toPtr<long long()>();
 
     zul_main();
-
+#endif
     return 0;
 }

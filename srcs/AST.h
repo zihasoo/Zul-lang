@@ -6,6 +6,8 @@
 #include <utility>
 #include <vector>
 #include <map>
+#include <set>
+#include <stack>
 #include <unordered_map>
 
 #include "llvm/ADT/APFloat.h"
@@ -24,18 +26,27 @@
 #include "Utility.h"
 #include "Lexer.h"
 
-struct AST;
+struct ExprAST;
 
-using LocalVarMap = std::unordered_map<std::string, std::pair<llvm::AllocaInst *, int>>;
 using GlobalVarMap = std::map<std::string, std::pair<llvm::GlobalVariable *, int>>;
+using LocalVarMap = std::unordered_map<std::string, std::pair<llvm::AllocaInst *, int>>;
 using ZulValue = std::pair<llvm::Value *, int>;
+using ASTPtr = std::unique_ptr<ExprAST>;
+
+extern ZulValue nullzul;
 
 struct ZulContext {
     std::unique_ptr<llvm::LLVMContext> context{new llvm::LLVMContext{}};
     std::unique_ptr<llvm::Module> module{new llvm::Module{"zul", *context}};
     llvm::IRBuilder<> builder{*context};
-    LocalVarMap local_var_map;
     GlobalVarMap global_var_map;
+    LocalVarMap local_var_map;
+    std::stack<std::set<std::string>> scope_stack;
+    std::stack<llvm::BasicBlock*> loop_update_stack;
+    std::stack<llvm::BasicBlock*> loop_end_stack;
+    llvm::BasicBlock *return_block;
+    llvm::AllocaInst *return_var;
+    int ret_count = 0;
 
     ZulContext();
 };
@@ -46,11 +57,10 @@ llvm::Value *create_int_operation(ZulContext &zulctx, llvm::Value *lhs, llvm::Va
 
 llvm::Value *create_float_operation(ZulContext &zulctx, llvm::Value *lhs, llvm::Value *rhs, Capture<Token> &op);
 
-static bool is_cmp(Token op);
+bool is_cmp(Token op);
 
-struct AST {
-public:
-    virtual ~AST() = default;
+struct ExprAST {
+    virtual ~ExprAST() = default;
 
     virtual ZulValue code_gen(ZulContext &zulctx) = 0;
 };
@@ -58,27 +68,87 @@ public:
 struct FuncProtoAST {
     std::string name;
     int return_type = -1;
-    bool has_body = true;
+    bool has_body;
+    bool is_var_arg;
     std::vector<std::pair<std::string, int>> params;
 
     FuncProtoAST() = default;
 
     FuncProtoAST(std::string name, int return_type, std::vector<std::pair<std::string, int>> params,
-                 bool has_body = true);
+                 bool has_body, bool is_var_arg);
 
     llvm::Function *code_gen(ZulContext &zulctx);
 };
 
-struct FuncRetAST : public AST {
+struct FuncRetAST : public ExprAST {
     Capture<int> return_type;
-    std::unique_ptr<AST> body;
+    ASTPtr body;
 
-    FuncRetAST(std::unique_ptr<AST> body, Capture<int> return_type);
+    FuncRetAST(ASTPtr body, Capture<int> return_type);
 
     ZulValue code_gen(ZulContext &zulctx) override;
 };
 
-struct ImmIntAST : public AST {
+struct IfAST : public ExprAST {
+    ASTPtr cond;
+    ASTPtr body;
+
+//    std::vector<ASTPtr> elif_ast;
+//    ASTPtr else_ast;
+    IfAST(ASTPtr cond, ASTPtr body) :
+            cond(std::move(cond)), body(std::move(body)) {}
+
+    ZulValue code_gen(ZulContext &zulctx) override {
+        return nullzul;
+    }
+};
+
+struct ElifAST : public ExprAST {
+    ASTPtr cond;
+    ASTPtr body;
+};
+
+struct ElseAST : public ExprAST {
+
+};
+
+struct LoopAST : public ExprAST {
+    ASTPtr init_loop;
+    ASTPtr test_loop;
+    ASTPtr update_loop;
+    std::vector<ASTPtr> body;
+
+    LoopAST(ASTPtr init_for, ASTPtr test_for, ASTPtr update_for, std::vector<ASTPtr> body);
+
+    ZulValue code_gen(ZulContext &zulctx) override;
+};
+
+struct ContinueAST : public ExprAST {
+    ZulValue code_gen(ZulContext &zulctx) override;
+};
+
+struct BreakAST : public ExprAST {
+    ZulValue code_gen(ZulContext &zulctx) override;
+};
+
+struct ImmBoolAST : public ExprAST {
+    bool val;
+
+    explicit ImmBoolAST(bool val);
+
+    ZulValue code_gen(ZulContext &zulctx) override;
+};
+
+struct ImmCharAST : public ExprAST {
+    char val;
+
+    explicit ImmCharAST(char val);
+
+    ZulValue code_gen(ZulContext &zulctx) override;
+};
+
+
+struct ImmIntAST : public ExprAST {
     long long val;
 
     explicit ImmIntAST(long long val);
@@ -86,7 +156,7 @@ struct ImmIntAST : public AST {
     ZulValue code_gen(ZulContext &zulctx) override;
 };
 
-struct ImmRealAST : public AST {
+struct ImmRealAST : public ExprAST {
     double val;
 
     explicit ImmRealAST(double val);
@@ -94,7 +164,7 @@ struct ImmRealAST : public AST {
     ZulValue code_gen(ZulContext &zulctx) override;
 };
 
-struct ImmStrAST : public AST {
+struct ImmStrAST : public ExprAST {
     std::string val;
 
     explicit ImmStrAST(std::string val);
@@ -102,85 +172,62 @@ struct ImmStrAST : public AST {
     ZulValue code_gen(ZulContext &zulctx) override;
 };
 
-//struct IfAST : public AST {
-//    std::unique_ptr<AST> cond;
-//    std::unique_ptr<AST> body;
-//
-////    std::vector<std::unique_ptr<AST>> elif_ast;
-////    std::unique_ptr<AST> else_ast;
-//    IfAST(std::unique_ptr<AST> cond, std::unique_ptr<AST> body) :
-//            cond(std::move(cond)), body(std::move(body)) {}
-//
-//    ZulValue code_gen(ZulContext &zulctx) override {
-//
-//    }
-//};
-//
-//struct ElifAST : public AST {
-//    std::unique_ptr<AST> cond;
-//    std::unique_ptr<AST> body;
-//};
-//
-//struct ElseAST : public AST {
-//
-//};
+struct VariableAST : public ExprAST {
+    std::string name;
 
-struct VariableAST : public AST {
-    Capture<std::string> name;
+    explicit VariableAST(std::string name);
 
-    explicit VariableAST(Capture<std::string> name);
-
-    std::pair<llvm::Value *, int> get_origin_value(ZulContext &zulctx);
+    std::pair<llvm::Value *, int> get_origin_value(ZulContext &zulctx) const;
 
     ZulValue code_gen(ZulContext &zulctx) override;
 };
 
-struct VariableDeclAST : public AST {
-    Capture<std::string> name;
+struct VariableDeclAST : public ExprAST {
+    std::string name;
     int type = -1;
-    std::unique_ptr<AST> body = nullptr;
+    ASTPtr body = nullptr;
 
-    VariableDeclAST(Capture<std::string> name, int type);
+    VariableDeclAST(std::string name, int type);
 
-    VariableDeclAST(Capture<std::string> name, std::unique_ptr<AST> body);
+    VariableDeclAST(std::string name, ASTPtr body);
 
     ZulValue code_gen(ZulContext &zulctx) override;
 };
 
-struct VariableAssnAST : public AST {
+struct VariableAssnAST : public ExprAST {
     std::unique_ptr<VariableAST> target;
     Capture<Token> op;
-    std::unique_ptr<AST> body;
+    ASTPtr body;
 
-    VariableAssnAST(std::unique_ptr<VariableAST> target, Capture<Token> op, std::unique_ptr<AST> body);
+    VariableAssnAST(std::unique_ptr<VariableAST> target, Capture<Token> op, ASTPtr body);
 
     ZulValue code_gen(ZulContext &zulctx) override;
 };
 
-struct BinOpAST : public AST {
-    std::unique_ptr<AST> left, right;
+struct BinOpAST : public ExprAST {
+    ASTPtr left, right;
     Capture<Token> op;
 
-    BinOpAST(std::unique_ptr<AST> left, std::unique_ptr<AST> right, Capture<Token> op);
+    BinOpAST(ASTPtr left, ASTPtr right, Capture<Token> op);
 
 
     ZulValue code_gen(ZulContext &zulctx) override;
 };
 
-struct UnaryOpAST : public AST {
-    std::unique_ptr<AST> body;
+struct UnaryOpAST : public ExprAST {
+    ASTPtr body;
     Capture<Token> op;
 
-    UnaryOpAST(std::unique_ptr<AST> body, Capture<Token> op);
+    UnaryOpAST(ASTPtr body, Capture<Token> op);
 
     ZulValue code_gen(ZulContext &zulctx) override;
 };
 
-struct FuncCallAST : public AST {
+struct FuncCallAST : public ExprAST {
     FuncProtoAST &proto;
-    std::vector<Capture<std::unique_ptr<AST>>> args;
+    std::vector<Capture<ASTPtr>> args;
 
-    FuncCallAST(FuncProtoAST &proto, std::vector<Capture<std::unique_ptr<AST>>> args);
+    FuncCallAST(FuncProtoAST &proto, std::vector<Capture<ASTPtr>> args);
 
     ZulValue code_gen(ZulContext &zulctx) override;
 };

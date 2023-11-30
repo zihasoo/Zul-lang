@@ -42,6 +42,7 @@ enum Token {
     tok_dquotes, //"
     tok_squotes, //'
     tok_anno, // //
+    tok_va_arg, // ..
 
     tok_add, // +
     tok_sub, // -

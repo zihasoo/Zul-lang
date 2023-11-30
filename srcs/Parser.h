@@ -3,10 +3,12 @@
 
 #include <string_view>
 #include <unordered_map>
+#include <set>
 #include <map>
 #include <utility>
 #include <memory>
 #include <vector>
+#include <sstream>
 
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/LLVMContext.h"
@@ -33,37 +35,45 @@ private:
 
     Token cur_tok;
 
+    int cur_func_ret_type = -1;
+
     void parse_top_level();
 
     void parse_global_var();
 
-    void parse_func_def(std::string &func_name, std::pair<int,int> name_loc);
+    void parse_func_def(std::string &func_name, std::pair<int,int> name_loc, int target_level);
 
-    std::vector<std::pair<std::string, int>> parse_parameter();
+    std::pair<std::vector<std::pair<std::string, int>>, bool> parse_parameter();
 
-    std::unique_ptr<AST> parse_expr_start(std::string& func_name, int level);
+    std::pair<ASTPtr, int> parse_line(int start_level, int target_level);
 
-    std::unique_ptr<AST> parse_local_var(std::string &name, std::pair<int, int> name_loc);
+    ASTPtr parse_expr_start();
 
-    std::unique_ptr<AST> parse_expr();
+    ASTPtr parse_local_var(std::string &name, std::pair<int, int> name_loc);
 
-    std::unique_ptr<AST> parse_bin_op(int prev_prec, std::unique_ptr<AST> left);
+    ASTPtr parse_expr();
 
-    std::unique_ptr<AST> parse_primary();
+    ASTPtr parse_bin_op(int prev_prec, ASTPtr left);
 
-//    std::unique_ptr<AST> parse_if(int level);
-//
-//    std::unique_ptr<AST> parse_for(int level);
+    ASTPtr parse_primary();
 
-    std::unique_ptr<AST> parse_identifier();
+    std::pair<ASTPtr, int> parse_if(int target_level);
 
-    std::unique_ptr<AST> parse_identifier(std::string &name, std::pair<int, int> name_loc);
+    std::pair<ASTPtr, int> parse_for(int target_level);
 
-    std::unique_ptr<UnaryOpAST> parse_unary_op();
+    ASTPtr parse_identifier();
 
-    std::unique_ptr<AST> parse_par();
+    ASTPtr parse_identifier(std::string &name, std::pair<int, int> name_loc);
 
-    std::unique_ptr<ImmStrAST> parse_str();
+    ASTPtr parse_unary_op();
+
+    ASTPtr parse_par();
+
+    ASTPtr parse_str();
+
+    ASTPtr parse_char();
+
+    void create_func(FuncProtoAST &proto, const std::vector<ASTPtr>& body);
 
     void advance();
 

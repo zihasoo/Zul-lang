@@ -15,6 +15,7 @@
 
 #define BOOL_TYPEID 0 //기본 타입의 시작 번호
 #define FLOAT_TYPEID 3 //기본 타입의 끝 번호
+#define ENTRY_FN_NAME "main"
 
 extern std::map<int, std::string> type_name_map;
 

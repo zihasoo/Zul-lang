@@ -5,7 +5,7 @@
 using namespace std;
 using namespace llvm;
 
-static ZulValue nullzul{nullptr, -1};
+ZulValue nullzul{nullptr, -1};
 
 ZulContext::ZulContext() {
     local_var_map.reserve(50);
@@ -108,14 +108,17 @@ bool is_cmp(Token op) {
         case tok_gt:
         case tok_gteq:
         case tok_lt:
+        case tok_lteq:
             return true;
         default:
             return false;
     }
 }
 
-FuncProtoAST::FuncProtoAST(string name, int return_type, vector<pair<string, int>> params, bool has_body) :
-        name(std::move(name)), return_type(return_type), params(std::move(params)), has_body(has_body) {}
+FuncProtoAST::FuncProtoAST(string name, int return_type, vector<pair<string, int>> params, bool has_body,
+                           bool is_var_arg) :
+        name(std::move(name)), return_type(return_type), params(std::move(params)), has_body(has_body),
+        is_var_arg(is_var_arg) {}
 
 llvm::Function *FuncProtoAST::code_gen(ZulContext &zulctx) {
     vector<llvm::Type *> param_types;
@@ -123,7 +126,7 @@ llvm::Function *FuncProtoAST::code_gen(ZulContext &zulctx) {
     for (auto &param: params) {
         param_types.emplace_back(get_llvm_type(*zulctx.context, param.second));
     }
-    auto func_type = llvm::FunctionType::get(get_llvm_type(*zulctx.context, return_type), param_types, false);
+    auto func_type = llvm::FunctionType::get(get_llvm_type(*zulctx.context, return_type), param_types, is_var_arg);
     auto llvm_func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, name, *zulctx.module);
     int i = 0;
     for (auto &arg: llvm_func->args()) {
@@ -132,7 +135,7 @@ llvm::Function *FuncProtoAST::code_gen(ZulContext &zulctx) {
     return llvm_func;
 }
 
-FuncRetAST::FuncRetAST(std::unique_ptr<AST> body, Capture<int> return_type) :
+FuncRetAST::FuncRetAST(ASTPtr body, Capture<int> return_type) :
         body(std::move(body)), return_type(std::move(return_type)) {}
 
 ZulValue FuncRetAST::code_gen(ZulContext &zulctx) {
@@ -145,8 +148,89 @@ ZulValue FuncRetAST::code_gen(ZulContext &zulctx) {
                                   "\" 에서 리턴 타입 \"", type_name_map[return_type.value], "\" 로 캐스팅 할 수 없습니다"});
     }
 
-    auto ret = zulctx.builder.CreateRet(body_value.first);
-    return {ret, body_value.second};
+    if (zulctx.ret_count == 1) {
+        zulctx.builder.CreateRet(body_value.first);
+        return nullzul;
+    }
+    zulctx.builder.CreateStore(body_value.first, zulctx.return_var);
+    zulctx.builder.CreateBr(zulctx.return_block);
+    return nullzul;
+}
+
+LoopAST::LoopAST(ASTPtr init_for, ASTPtr test_for, ASTPtr update_for, std::vector<ASTPtr> body) :
+        init_loop(std::move(init_for)), test_loop(std::move(test_for)), update_loop(std::move(update_for)),
+        body(std::move(body)) {}
+
+ZulValue LoopAST::code_gen(ZulContext &zulctx) {
+    auto func = zulctx.builder.GetInsertBlock()->getParent();
+    auto test_block = llvm::BasicBlock::Create(*zulctx.context, "loop_test", func);
+    auto start_block = llvm::BasicBlock::Create(*zulctx.context, "loop_start", func);
+    auto update_block = llvm::BasicBlock::Create(*zulctx.context, "loop_update", func);
+    auto end_block = llvm::BasicBlock::Create(*zulctx.context, "loop_end", func);
+    zulctx.loop_update_stack.push(update_block);
+    zulctx.loop_end_stack.push(end_block);
+
+    if (init_loop && !init_loop->code_gen(zulctx).first)
+        return nullzul;
+
+    zulctx.builder.CreateBr(test_block);
+    zulctx.builder.SetInsertPoint(test_block);
+    ZulValue test_cond;
+    if (test_loop) {
+        test_cond = test_loop->code_gen(zulctx);
+        if (test_cond.first == nullptr)
+            return nullzul;
+    } else {
+        test_cond = {llvm::ConstantInt::get(*zulctx.context, llvm::APInt(1, 1)), BOOL_TYPEID};
+    }
+    if (test_cond.second == FLOAT_TYPEID) {
+        test_cond.first = zulctx.builder.CreateFCmpONE(test_cond.first,
+                                                       llvm::ConstantFP::get(test_cond.first->getType(), 0));
+    } else if (test_cond.second != BOOL_TYPEID) {
+        auto zero = get_const_zero(*zulctx.context, test_cond.second);
+        if (zero == nullptr) //bool형으로 캐스팅 불가능한 경우
+            return nullzul;
+        test_cond.first = zulctx.builder.CreateICmpNE(test_cond.first, zero);
+    }
+    zulctx.builder.CreateCondBr(test_cond.first, start_block, end_block);
+
+    zulctx.builder.SetInsertPoint(start_block);
+    for (auto &ast: body) {
+        ast->code_gen(zulctx);
+    }
+    zulctx.builder.CreateBr(update_block);
+
+    zulctx.builder.SetInsertPoint(update_block);
+    if (update_loop && !update_loop->code_gen(zulctx).first)
+        return nullzul;
+    zulctx.builder.CreateBr(test_block);
+
+    zulctx.builder.SetInsertPoint(end_block);
+    zulctx.loop_update_stack.pop();
+    zulctx.loop_end_stack.pop();
+    return nullzul;
+}
+
+ZulValue ContinueAST::code_gen(ZulContext &zulctx) {
+    zulctx.builder.CreateBr(zulctx.loop_update_stack.top());
+    return nullzul;
+}
+
+ZulValue BreakAST::code_gen(ZulContext &zulctx) {
+    zulctx.builder.CreateBr(zulctx.loop_end_stack.top());
+    return nullzul;
+}
+
+ImmBoolAST::ImmBoolAST(bool val) : val(val) {}
+
+ZulValue ImmBoolAST::code_gen(ZulContext &zulctx) {
+    return {llvm::ConstantInt::get(*zulctx.context, llvm::APInt(1, val)), BOOL_TYPEID};
+}
+
+ImmCharAST::ImmCharAST(char val) : val(val) {}
+
+ZulValue ImmCharAST::code_gen(ZulContext &zulctx) {
+    return {llvm::ConstantInt::get(*zulctx.context, llvm::APInt(8, val)), BOOL_TYPEID + 1};
 }
 
 ImmIntAST::ImmIntAST(long long int val) : val(val) {}
@@ -167,14 +251,13 @@ ZulValue ImmStrAST::code_gen(ZulContext &zulctx) {
     return {zulctx.builder.CreateGlobalStringPtr(val), 4};
 }
 
-VariableAST::VariableAST(Capture<string> name) : name(std::move(name)) {}
+VariableAST::VariableAST(string name) : name(std::move(name)) {}
 
-pair<llvm::Value *, int> VariableAST::get_origin_value(ZulContext &zulctx) {
-    if (zulctx.local_var_map.contains(name.value))
-        return zulctx.local_var_map[name.value];
-    if (zulctx.global_var_map.contains(name.value))
-        return zulctx.global_var_map[name.value];
-    System::logger.log_error(name.loc, name.word_size, {"\"", name.value, "\" 는 존재하지 않는 변수입니다"});
+pair<llvm::Value *, int> VariableAST::get_origin_value(ZulContext &zulctx) const {
+    if (zulctx.local_var_map.contains(name))
+        return zulctx.local_var_map[name];
+    if (zulctx.global_var_map.contains(name))
+        return zulctx.global_var_map[name];
     return nullzul;
 }
 
@@ -183,58 +266,35 @@ ZulValue VariableAST::code_gen(ZulContext &zulctx) {
     if (!value.first)
         return nullzul;
     value.first = zulctx.builder.CreateLoad(get_llvm_type(*zulctx.context, value.second), value.first);
-    return {value.first, value.second};
+    return value;
 }
 
-VariableDeclAST::VariableDeclAST(Capture<string> name, int type) :
+VariableDeclAST::VariableDeclAST(string name, int type) :
         name(std::move(name)), type(type) {}
 
-VariableDeclAST::VariableDeclAST(Capture<string> name, unique_ptr<AST> body) :
+VariableDeclAST::VariableDeclAST(string name, ASTPtr body) :
         name(std::move(name)), body(std::move(body)) {}
 
 ZulValue VariableDeclAST::code_gen(ZulContext &zulctx) {
-    ZulValue init_val(nullptr, type);
-    bool is_exist = zulctx.global_var_map.contains(name.value) || zulctx.local_var_map.contains(name.value);
+    Value *init_val = nullptr;
     if (body) { //대입식이 있으면 식 먼저 생성
         auto result = body->code_gen(zulctx);
         if (result.first == nullptr)
             return nullzul;
-        init_val.first = result.first;
-        init_val.second = type = result.second;
-    } else if (is_exist) { //대입식이 아닌데 (선언문인데) 이미 존재하는 변수면
-        System::logger.log_error(name.loc, name.word_size, "변수가 재정의되었습니다");
-        return nullzul;
+        init_val = result.first;
+        type = result.second;
     }
-    llvm::Value *target;
-    if (is_exist) { //이미 존재하는 변수인 경우
-        pair<llvm::Value *, int> origin; //원본 변수를 가져옴
-        if (zulctx.local_var_map.contains(name.value)) {
-            origin = zulctx.local_var_map[name.value];
-        } else {
-            origin = zulctx.global_var_map[name.value];
-        }
-        //대입식과 원본 변수의 타입이 일치하지 않으면 대입식에 캐스팅 시도
-        if (origin.second != type && !create_cast(zulctx, init_val, origin.second)) {
-            System::logger.log_error(name.loc, name.word_size,
-                                     {"타입이 일치하지 않습니다. 대입 연산식의 타입 \"",
-                                      type_name_map[type], "\" 에서 변수의 타입 \"", type_name_map[origin.second],
-                                      "\" 로 캐스팅 할 수 없습니다"});
-            return nullzul;
-        }
-        target = origin.first;
-    } else { //새로운 변수면 스택 할당 구문 추가
-        auto func = zulctx.builder.GetInsertBlock()->getParent();
-        llvm::IRBuilder<> temp_builder(&func->getEntryBlock(), func->getEntryBlock().begin());
-        auto alloca_val = temp_builder.CreateAlloca(get_llvm_type(*zulctx.context, type), nullptr, name.value);
-        zulctx.local_var_map.emplace(name.value, make_pair(alloca_val, type));
-        target = alloca_val;
-    }
+    auto func = zulctx.builder.GetInsertBlock()->getParent();
+    llvm::IRBuilder<> entry_builder(&func->getEntryBlock(), func->getEntryBlock().begin());
+    auto alloca_val = entry_builder.CreateAlloca(get_llvm_type(*zulctx.context, type), nullptr, name);
+    zulctx.local_var_map[name] = make_pair(alloca_val, type);
+
     if (body)
-        zulctx.builder.CreateStore(init_val.first, target);
-    return {target, type};
+        zulctx.builder.CreateStore(init_val, alloca_val);
+    return {alloca_val, type};
 }
 
-VariableAssnAST::VariableAssnAST(unique_ptr<VariableAST> target, Capture<Token> op, unique_ptr<AST> body) :
+VariableAssnAST::VariableAssnAST(unique_ptr<VariableAST> target, Capture<Token> op, ASTPtr body) :
         target(std::move(target)), op(std::move(op)), body(std::move(body)) {}
 
 ZulValue VariableAssnAST::code_gen(ZulContext &zulctx) {
@@ -271,22 +331,25 @@ ZulValue VariableAssnAST::code_gen(ZulContext &zulctx) {
                                   "\" 로 캐스팅 할 수 없습니다"});
         return nullzul;
     }
-    auto prac_op = Capture(assn_op_map[op.value], op.loc, op.word_size);
     llvm::Value *result;
-    if (target_value.second < FLOAT_TYPEID) {
-        result = create_int_operation(zulctx, target_value.first, body_value.first, prac_op);
+    if (op.value == tok_assn) {
+        result = body_value.first;
     } else {
-        result = create_float_operation(zulctx, target_value.first, body_value.first, prac_op);
+        auto prac_op = Capture(assn_op_map[op.value], op.loc, op.word_size);
+        if (target_value.second < FLOAT_TYPEID) {
+            result = create_int_operation(zulctx, target_value.first, body_value.first, prac_op);
+        } else {
+            result = create_float_operation(zulctx, target_value.first, body_value.first, prac_op);
+        }
+        if (!result)
+            return nullzul;
     }
-    if (!result)
-        return nullzul;
-    result = zulctx.builder.CreateStore(result, target->get_origin_value(zulctx).first);
-    return {result, target_value.second};
+    return {zulctx.builder.CreateStore(result, target->get_origin_value(zulctx).first), target_value.second};
 }
 
-BinOpAST::BinOpAST(unique_ptr<AST> left, unique_ptr<AST> right, Capture<Token> op) : left(std::move(left)),
-                                                                                     right(std::move(right)),
-                                                                                     op(std::move(op)) {}
+BinOpAST::BinOpAST(ASTPtr left, ASTPtr right, Capture<Token> op) : left(std::move(left)),
+                                                                   right(std::move(right)),
+                                                                   op(std::move(op)) {}
 
 ZulValue BinOpAST::code_gen(ZulContext &zulctx) {
     auto lhs = left->code_gen(zulctx);
@@ -332,7 +395,7 @@ ZulValue BinOpAST::code_gen(ZulContext &zulctx) {
     return {ret, calc_type};
 }
 
-UnaryOpAST::UnaryOpAST(unique_ptr<AST> body, Capture<Token> op) : body(std::move(body)), op(std::move(op)) {}
+UnaryOpAST::UnaryOpAST(ASTPtr body, Capture<Token> op) : body(std::move(body)), op(std::move(op)) {}
 
 ZulValue UnaryOpAST::code_gen(ZulContext &zulctx) {
     auto body_value = body->code_gen(zulctx);
@@ -369,7 +432,7 @@ ZulValue UnaryOpAST::code_gen(ZulContext &zulctx) {
     return body_value;
 }
 
-FuncCallAST::FuncCallAST(FuncProtoAST &proto, vector<Capture<unique_ptr<AST>>> args)
+FuncCallAST::FuncCallAST(FuncProtoAST &proto, vector<Capture<ASTPtr>> args)
         : proto(proto), args(std::move(args)) {}
 
 ZulValue FuncCallAST::code_gen(ZulContext &zulctx) {
@@ -381,7 +444,8 @@ ZulValue FuncCallAST::code_gen(ZulContext &zulctx) {
         auto arg = args[i].value->code_gen(zulctx);
         if (!arg.first)
             return nullzul;
-        if (arg.second != proto.params[i].second && !create_cast(zulctx, arg, proto.params[i].second)) {
+        if (i < proto.params.size() && arg.second != proto.params[i].second &&
+            !create_cast(zulctx, arg, proto.params[i].second)) {
             //arg와 param의 타입이 맞지 않으면 캐스팅 시도
             System::logger.log_error(args[i].loc, args[i].word_size, {
                     "인자의 타입 \"", type_name_map[arg.second], "\" 에서 매개변수의 타입 \"",
