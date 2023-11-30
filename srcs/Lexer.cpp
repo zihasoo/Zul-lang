@@ -29,45 +29,36 @@ void Lexer::log_cur_token(const std::initializer_list<std::string_view> &msgs) {
     System::logger.log_error(token_start_loc, last_word.size(), msgs);
 }
 
+int Lexer::inner_advance() {
+    int input = source.get();
+    cur_line.push_back(input);
+    raw_last_char.push_back(input);
+    return input;
+}
+
 void Lexer::advance() {
-    last_char = source.get();
+    int input = source.get();
     cur_loc.second++;
     raw_last_char.clear();
-    raw_last_char.push_back(last_char);
-    cur_line.push_back(last_char);
-    int ret = last_char;
-    if ((last_char & 0xE0) == 0xC0) {
-        ret = (last_char & 0x1F) << 6;
-        last_char = source.get();
-        cur_line.push_back(last_char);
-        raw_last_char.push_back(last_char);
-        ret |= (last_char & 0x3F);
-    } else if ((last_char & 0xF0) == 0xE0) {
-        ret = (last_char & 0xF) << 12;
-        last_char = source.get();
-        cur_line.push_back(last_char);
-        raw_last_char.push_back(last_char);
-        ret |= (last_char & 0x3F) << 6;
-        last_char = source.get();
-        cur_line.push_back(last_char);
-        raw_last_char.push_back(last_char);
-        ret |= (last_char & 0x3F);
-    } else if ((last_char & 0xF8) == 0xF0) {
-        ret = (last_char & 0x7) << 18;
-        last_char = source.get();
-        cur_line.push_back(last_char);
-        raw_last_char.push_back(last_char);
-        ret |= (last_char & 0x3F) << 12;
-        last_char = source.get();
-        cur_line.push_back(last_char);
-        raw_last_char.push_back(last_char);
-        ret |= (last_char & 0x3F) << 6;
-        last_char = source.get();
-        cur_line.push_back(last_char);
-        raw_last_char.push_back(last_char);
-        ret |= (last_char & 0x3F);
+    if (input != '\n' && input != EOF) {
+        cur_line.push_back(input);
+        raw_last_char.push_back(input);
     }
-    last_char = ret;
+    if ((input & 0xE0) == 0xC0) {
+        last_char = (input & 0x1F) << 6;
+        last_char |= (inner_advance() & 0x3F);
+    } else if ((input & 0xF0) == 0xE0) {
+        last_char = (input & 0xF) << 12;
+        last_char |= (inner_advance() & 0x3F) << 6;
+        last_char |= (inner_advance() & 0x3F);
+    } else if ((last_char & 0xF8) == 0xF0) {
+        last_char = (input & 0x7) << 18;
+        last_char |= (inner_advance() & 0x3F) << 12;
+        last_char |= (inner_advance() & 0x3F) << 6;
+        last_char |= (inner_advance() & 0x3F);
+    } else {
+        last_char = input;
+    }
 }
 
 Token Lexer::get_token() {
@@ -188,133 +179,6 @@ int Lexer::get_line_index() {
 
 std::string Lexer::get_line_substr(int st, int ed) {
     return cur_line.substr(st, ed - st);
-}
-
-string Lexer::token_to_string(Token token) {
-    switch (token) {
-        case tok_hi:
-            return "tok_hi";
-        case tok_go:
-            return "tok_go";
-        case tok_ij:
-            return "tok_ij";
-        case tok_no:
-            return "tok_no";
-        case tok_nope:
-            return "tok_nope";
-        case tok_gg:
-            return "tok_gg";
-        case tok_sg:
-            return "tok_sg";
-        case tok_tt:
-            return "tok_tt";
-        case tok_identifier:
-            return "tok_identifier";
-        case tok_int:
-            return "tok_int";
-        case tok_real:
-            return "tok_real";
-        case tok_string:
-            return "tok_string";
-        case tok_eng:
-            return "tok_eng";
-        case tok_indent:
-            return "tok_indent";
-        case tok_newline:
-            return "tok_newline";
-        case tok_comma:
-            return "tok_comma";
-        case tok_colon:
-            return "tok_colon";
-        case tok_semicolon:
-            return "tok_semicolon";
-        case tok_lpar:
-            return "tok_lpar";
-        case tok_rpar:
-            return "tok_rpar";
-        case tok_rsqbrk:
-            return "tok_rsqbrk";
-        case tok_lsqbrk:
-            return "tok_lsqbrk";
-        case tok_rbrk:
-            return "tok_rbrk";
-        case tok_lbrk:
-            return "tok_lbrk";
-        case tok_dot:
-            return "tok_dot";
-        case tok_dquotes:
-            return "tok_dquotes";
-        case tok_squotes:
-            return "tok_squotes";
-        case tok_anno:
-            return "tok_anno";
-        case tok_add:
-            return "tok_add";
-        case tok_sub:
-            return "tok_sub";
-        case tok_mul:
-            return "tok_mul";
-        case tok_div:
-            return "tok_div";
-        case tok_mod:
-            return "tok_mod";
-        case tok_and:
-            return "tok_and";
-        case tok_or:
-            return "tok_or";
-        case tok_not:
-            return "tok_not";
-        case tok_bitand:
-            return "tok_bitand";
-        case tok_bitor:
-            return "tok_bitor";
-        case tok_bitnot:
-            return "tok_bitnot";
-        case tok_bitxor:
-            return "tok_bitxor";
-        case tok_lshift:
-            return "tok_lshift";
-        case tok_rshift:
-            return "tok_rshift";
-        case tok_assn:
-            return "tok_assn";
-        case tok_mul_assn:
-            return "tok_mul_assn";
-        case tok_div_assn:
-            return "tok_div_assn";
-        case tok_mod_assn:
-            return "tok_mod_assn";
-        case tok_add_assn:
-            return "tok_add_assn";
-        case tok_sub_assn:
-            return "tok_sub_assn";
-        case tok_lshift_assn:
-            return "tok_lshift_assn";
-        case tok_rshift_assn:
-            return "tok_rshift_assn";
-        case tok_and_assn:
-            return "tok_and_assn";
-        case tok_or_assn:
-            return "tok_or_assn";
-        case tok_xor_assn:
-            return "tok_xor_assn";
-        case tok_eq:
-            return "tok_eq";
-        case tok_ineq:
-            return "tok_ineq";
-        case tok_gt:
-            return "tok_gt";
-        case tok_gteq:
-            return "tok_gteq";
-        case tok_lt:
-            return "tok_lt";
-        case tok_lteq:
-            return "tok_lteq";
-        case tok_eof:
-            return "tok_eof";
-        default:
-            return "tok_undefined";
-    }
 }
 
 unordered_map<string_view, Token> Lexer::token_map =

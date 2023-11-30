@@ -41,7 +41,7 @@ private:
 
     std::vector<std::pair<std::string, int>> parse_parameter();
 
-    std::unique_ptr<AST> parse_expr_start(std::string& name);
+    std::unique_ptr<AST> parse_expr_start(std::string& func_name, int level);
 
     std::unique_ptr<AST> parse_local_var(std::string &name, std::pair<int, int> name_loc);
 
@@ -50,6 +50,10 @@ private:
     std::unique_ptr<AST> parse_bin_op(int prev_prec, std::unique_ptr<AST> left);
 
     std::unique_ptr<AST> parse_primary();
+
+//    std::unique_ptr<AST> parse_if(int level);
+//
+//    std::unique_ptr<AST> parse_for(int level);
 
     std::unique_ptr<AST> parse_identifier();
 

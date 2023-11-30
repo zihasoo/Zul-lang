@@ -53,4 +53,6 @@ bool isnum(int c);
 
 bool iskornum(int c);
 
+std::string token_to_string(Token token); //토큰을 문자열로 출력
+
 #endif //ZULLANG_UTILITY_H

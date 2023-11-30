@@ -7,10 +7,6 @@ using namespace llvm;
 
 static ZulValue nullzul{nullptr, -1};
 
-ZulValue::operator pair<llvm::Value *, int>() {
-    return {value, type_id};
-}
-
 ZulContext::ZulContext() {
     local_var_map.reserve(50);
 }
@@ -18,13 +14,13 @@ ZulContext::ZulContext() {
 bool create_cast(ZulContext &zulctx, ZulValue &target, int dest_type_id) {
     bool cast = true;
     if (dest_type_id == FLOAT_TYPEID) {
-        target.value = zulctx.builder.CreateSIToFP(target.value, llvm::Type::getDoubleTy(*zulctx.context));
+        target.first = zulctx.builder.CreateSIToFP(target.first, llvm::Type::getDoubleTy(*zulctx.context));
     } else if (dest_type_id < FLOAT_TYPEID) {
         auto dest_type = get_llvm_type(*zulctx.context, dest_type_id);
-        if (target.type_id == FLOAT_TYPEID) {
-            target.value = zulctx.builder.CreateFPToSI(target.value, dest_type);
+        if (target.second == FLOAT_TYPEID) {
+            target.first = zulctx.builder.CreateFPToSI(target.first, dest_type);
         } else {
-            target.value = zulctx.builder.CreateIntCast(target.value, dest_type, target.type_id != BOOL_TYPEID);
+            target.first = zulctx.builder.CreateIntCast(target.first, dest_type, target.second != BOOL_TYPEID);
         }
     } else {
         cast = false;
@@ -141,16 +137,16 @@ FuncRetAST::FuncRetAST(std::unique_ptr<AST> body, Capture<int> return_type) :
 
 ZulValue FuncRetAST::code_gen(ZulContext &zulctx) {
     auto body_value = body->code_gen(zulctx);
-    if (!body_value.value)
+    if (!body_value.first)
         return nullzul;
-    if (return_type.value != body_value.type_id && !create_cast(zulctx, body_value, return_type.value)) {
+    if (return_type.value != body_value.second && !create_cast(zulctx, body_value, return_type.value)) {
         System::logger.log_error(return_type.loc, return_type.word_size,
-                                 {"리턴 타입이 일치하지 않습니다. 반환 구문의 타입 \"", type_name_map[body_value.type_id],
+                                 {"리턴 타입이 일치하지 않습니다. 반환 구문의 타입 \"", type_name_map[body_value.second],
                                   "\" 에서 리턴 타입 \"", type_name_map[return_type.value], "\" 로 캐스팅 할 수 없습니다"});
     }
 
-    auto ret = zulctx.builder.CreateRet(body_value.value);
-    return {ret, body_value.type_id};
+    auto ret = zulctx.builder.CreateRet(body_value.first);
+    return {ret, body_value.second};
 }
 
 ImmIntAST::ImmIntAST(long long int val) : val(val) {}
@@ -201,10 +197,10 @@ ZulValue VariableDeclAST::code_gen(ZulContext &zulctx) {
     bool is_exist = zulctx.global_var_map.contains(name.value) || zulctx.local_var_map.contains(name.value);
     if (body) { //대입식이 있으면 식 먼저 생성
         auto result = body->code_gen(zulctx);
-        if (result.value == nullptr)
+        if (result.first == nullptr)
             return nullzul;
-        init_val.value = result.value;
-        init_val.type_id = type = result.type_id;
+        init_val.first = result.first;
+        init_val.second = type = result.second;
     } else if (is_exist) { //대입식이 아닌데 (선언문인데) 이미 존재하는 변수면
         System::logger.log_error(name.loc, name.word_size, "변수가 재정의되었습니다");
         return nullzul;
@@ -234,7 +230,7 @@ ZulValue VariableDeclAST::code_gen(ZulContext &zulctx) {
         target = alloca_val;
     }
     if (body)
-        zulctx.builder.CreateStore(init_val.value, target);
+        zulctx.builder.CreateStore(init_val.first, target);
     return {target, type};
 }
 
@@ -257,35 +253,35 @@ ZulValue VariableAssnAST::code_gen(ZulContext &zulctx) {
     auto target_value = target->code_gen(zulctx);
     auto body_value = body->code_gen(zulctx);
 
-    if (!target_value.value || !body_value.value ||
-        target_value.type_id > FLOAT_TYPEID || body_value.type_id > FLOAT_TYPEID) {
+    if (!target_value.first || !body_value.first ||
+        target_value.second > FLOAT_TYPEID || body_value.second > FLOAT_TYPEID) {
         System::logger.log_error(op.loc, op.word_size,
                                  {"대입 연산식의 타입 \"",
-                                  type_name_map[target_value.type_id], "\" 과 변수의 타입 \"",
-                                  type_name_map[body_value.type_id],
+                                  type_name_map[target_value.second], "\" 과 변수의 타입 \"",
+                                  type_name_map[body_value.second],
                                   "\" 사이에 적절한 연산자 오버로드가 없습니다"});
         return nullzul;
     }
 
-    if (target_value.type_id != body_value.type_id && !create_cast(zulctx, body_value, target_value.type_id)) {
+    if (target_value.second != body_value.second && !create_cast(zulctx, body_value, target_value.second)) {
         System::logger.log_error(op.loc, op.word_size,
                                  {"대입 연산식의 타입 \"",
-                                  type_name_map[target_value.type_id], "\" 에서 변수의 타입 \"",
-                                  type_name_map[body_value.type_id],
+                                  type_name_map[target_value.second], "\" 에서 변수의 타입 \"",
+                                  type_name_map[body_value.second],
                                   "\" 로 캐스팅 할 수 없습니다"});
         return nullzul;
     }
     auto prac_op = Capture(assn_op_map[op.value], op.loc, op.word_size);
     llvm::Value *result;
-    if (target_value.type_id < FLOAT_TYPEID) {
-        result = create_int_operation(zulctx, target_value.value, body_value.value, prac_op);
+    if (target_value.second < FLOAT_TYPEID) {
+        result = create_int_operation(zulctx, target_value.first, body_value.first, prac_op);
     } else {
-        result = create_float_operation(zulctx, target_value.value, body_value.value, prac_op);
+        result = create_float_operation(zulctx, target_value.first, body_value.first, prac_op);
     }
     if (!result)
         return nullzul;
     result = zulctx.builder.CreateStore(result, target->get_origin_value(zulctx).first);
-    return {result, target_value.type_id};
+    return {result, target_value.second};
 }
 
 BinOpAST::BinOpAST(unique_ptr<AST> left, unique_ptr<AST> right, Capture<Token> op) : left(std::move(left)),
@@ -295,42 +291,42 @@ BinOpAST::BinOpAST(unique_ptr<AST> left, unique_ptr<AST> right, Capture<Token> o
 ZulValue BinOpAST::code_gen(ZulContext &zulctx) {
     auto lhs = left->code_gen(zulctx);
     auto rhs = right->code_gen(zulctx);
-    if (!lhs.value || !rhs.value)
+    if (!lhs.first || !rhs.first)
         return nullzul;
-    if (lhs.type_id > FLOAT_TYPEID || rhs.type_id > FLOAT_TYPEID) { //연산자 오버로딩 지원 하게되면 변경
+    if (lhs.second > FLOAT_TYPEID || rhs.second > FLOAT_TYPEID) { //연산자 오버로딩 지원 하게되면 변경
         System::logger.log_error(op.loc, op.word_size, {"좌측항의 타입 \"",
-                                                        type_name_map[lhs.type_id], "\" 과 우측항의 타입 \"",
-                                                        type_name_map[rhs.type_id],
+                                                        type_name_map[lhs.second], "\" 과 우측항의 타입 \"",
+                                                        type_name_map[rhs.second],
                                                         "\" 사이에 적절한 연산자 오버로드가 없습니다"});
         return nullzul;
     }
-    int calc_type = lhs.type_id;
-    if (lhs.type_id > rhs.type_id) {
-        calc_type = lhs.type_id;
-        if (!create_cast(zulctx, rhs, lhs.type_id)) {
+    int calc_type = lhs.second;
+    if (lhs.second > rhs.second) {
+        calc_type = lhs.second;
+        if (!create_cast(zulctx, rhs, lhs.second)) {
             System::logger.log_error(op.loc, op.word_size,
                                      {"우측항의 타입 \"",
-                                      type_name_map[rhs.type_id], "\" 에서 좌측항의 타입 \"",
-                                      type_name_map[lhs.type_id],
+                                      type_name_map[rhs.second], "\" 에서 좌측항의 타입 \"",
+                                      type_name_map[lhs.second],
                                       "\" 로 캐스팅 할 수 없습니다"});
             return nullzul;
         }
-    } else if (lhs.type_id < rhs.type_id) {
-        calc_type = rhs.type_id;
-        if (!create_cast(zulctx, lhs, rhs.type_id)) {
+    } else if (lhs.second < rhs.second) {
+        calc_type = rhs.second;
+        if (!create_cast(zulctx, lhs, rhs.second)) {
             System::logger.log_error(op.loc, op.word_size,
                                      {"좌측항의 타입 \"",
-                                      type_name_map[lhs.type_id], "\" 에서 우측항의 타입 \"",
-                                      type_name_map[rhs.type_id],
+                                      type_name_map[lhs.second], "\" 에서 우측항의 타입 \"",
+                                      type_name_map[rhs.second],
                                       "\" 로 캐스팅 할 수 없습니다"});
             return nullzul;
         }
     }
     llvm::Value *ret;
     if (calc_type < FLOAT_TYPEID) {
-        ret = create_int_operation(zulctx, lhs.value, rhs.value, op);
+        ret = create_int_operation(zulctx, lhs.first, rhs.first, op);
     } else {
-        ret = create_float_operation(zulctx, lhs.value, rhs.value, op);
+        ret = create_float_operation(zulctx, lhs.first, rhs.first, op);
     }
     calc_type = is_cmp(op.value) ? BOOL_TYPEID : calc_type;
     return {ret, calc_type};
@@ -340,10 +336,10 @@ UnaryOpAST::UnaryOpAST(unique_ptr<AST> body, Capture<Token> op) : body(std::move
 
 ZulValue UnaryOpAST::code_gen(ZulContext &zulctx) {
     auto body_value = body->code_gen(zulctx);
-    auto zero = get_const_zero(body_value.value->getType(), body_value.type_id);
-    if (!body_value.value)
+    auto zero = get_const_zero(body_value.first->getType(), body_value.second);
+    if (!body_value.first)
         return nullzul;
-    if (body_value.type_id > FLOAT_TYPEID) {
+    if (body_value.second > FLOAT_TYPEID) {
         System::logger.log_error(op.loc, op.word_size, "단항 연산자를 적용할 수 없습니다");
         return nullzul;
     }
@@ -351,21 +347,21 @@ ZulValue UnaryOpAST::code_gen(ZulContext &zulctx) {
         case tok_add:
             break;
         case tok_sub:
-            if (body_value.type_id < FLOAT_TYPEID)
-                return {zulctx.builder.CreateSub(zero, body_value.value), body_value.type_id};
+            if (body_value.second < FLOAT_TYPEID)
+                return {zulctx.builder.CreateSub(zero, body_value.first), body_value.second};
             else
-                return {zulctx.builder.CreateFSub(zero, body_value.value), body_value.type_id};
+                return {zulctx.builder.CreateFSub(zero, body_value.first), body_value.second};
         case tok_not:
-            if (body_value.type_id < FLOAT_TYPEID)
-                return {zulctx.builder.CreateICmpEQ(zero, body_value.value), body_value.type_id};
+            if (body_value.second < FLOAT_TYPEID)
+                return {zulctx.builder.CreateICmpEQ(zero, body_value.first), body_value.second};
             else
-                return {zulctx.builder.CreateFCmpOEQ(zero, body_value.value), body_value.type_id};
+                return {zulctx.builder.CreateFCmpOEQ(zero, body_value.first), body_value.second};
         case tok_bitnot:
-            if (body_value.type_id == FLOAT_TYPEID) {
+            if (body_value.second == FLOAT_TYPEID) {
                 System::logger.log_error(op.loc, op.word_size, "단항 '~' 연산자를 적용할 수 없습니다");
                 return nullzul;
             }
-            return {zulctx.builder.CreateNot(body_value.value), body_value.type_id};
+            return {zulctx.builder.CreateNot(body_value.first), body_value.second};
         default:
             System::logger.log_error(op.loc, op.word_size, "올바른 단항 연산자가 아닙니다");
             return nullzul;
@@ -383,14 +379,16 @@ ZulValue FuncCallAST::code_gen(ZulContext &zulctx) {
     arg_values.reserve(args.size());
     for (int i = 0; i < args.size(); i++) {
         auto arg = args[i].value->code_gen(zulctx);
-        if (arg.type_id != proto.params[i].second && !create_cast(zulctx, arg, proto.params[i].second)) {
+        if (!arg.first)
+            return nullzul;
+        if (arg.second != proto.params[i].second && !create_cast(zulctx, arg, proto.params[i].second)) {
             //arg와 param의 타입이 맞지 않으면 캐스팅 시도
             System::logger.log_error(args[i].loc, args[i].word_size, {
-                    "인자의 타입 \"", type_name_map[arg.type_id], "\" 에서 매개변수의 타입 \"",
+                    "인자의 타입 \"", type_name_map[arg.second], "\" 에서 매개변수의 타입 \"",
                     type_name_map[proto.params[i].second], "\" 로 캐스팅 할 수 없습니다"});
             has_error = true;
         }
-        arg_values.push_back(arg.value);
+        arg_values.push_back(arg.first);
     }
     if (has_error)
         return nullzul;

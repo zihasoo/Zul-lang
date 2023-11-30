@@ -79,7 +79,7 @@ void Logger::flush() {
         clog << source_name << ' ' << log.row << ':' << log.col << ": 에러: " << log.msg << '\n';
         clog.width(5);
         clog << log.row << " | " << line_map[log.row]
-             << "      | " << indent(line_map[log.row], log.col - 1)
+             << "\n      | " << indent(line_map[log.row], log.col - 1)
              << "^" << tilde(log.word_size - 1) << '\n';
         buffer.pop();
     }

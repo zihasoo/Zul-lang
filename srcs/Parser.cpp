@@ -154,10 +154,10 @@ void Parser::parse_func_def(string &func_name, pair<int, int> name_loc) {
             while (cur_tok == tok_indent)
                 advance();
         }
-        auto expr = parse_expr_start(func_name);
+        auto expr = parse_expr_start(func_name, 1);
         if (expr)
             func_body.push_back(std::move(expr));
-        if (cur_tok != tok_newline) {
+        if (cur_tok != tok_newline && cur_tok != tok_eof) {
             lexer.log_cur_token({"예기치 않은 토큰 \"", lexer.get_word(), "\""});
             while (cur_tok != tok_newline && cur_tok != tok_eof)
                 advance();
@@ -226,24 +226,21 @@ vector<std::pair<std::string, int>> Parser::parse_parameter() {
     return params;
 }
 
-unique_ptr<AST> Parser::parse_expr_start(string& name) {
+unique_ptr<AST> Parser::parse_expr_start(string& func_name, int level) {
     unique_ptr<AST> left;
     if (cur_tok == tok_go) { //ㄱㄱ문
         lexer.log_cur_token("아직 ㄱㄱ문은 지원되지 않습니다");
         advance();
+        //return parse_for(level);
     } else if (cur_tok == tok_ij) { //ㅇㅈ?문
-        lexer.log_cur_token("아직 ㅇㅈ?문은 지원되지 않습니다");
         advance();
-    } else if (cur_tok == tok_no) { //ㄴㄴ?문
-        lexer.log_cur_token("아직 ㄴㄴ?문은 지원되지 않습니다");
-        advance();
-    } else if (cur_tok == tok_nope) { //ㄴㄴ문
-        lexer.log_cur_token("아직 ㅇㅈ?문은 지원되지 않습니다");
-        advance();
+        //return parse_if(level + 1);
     } else if (cur_tok == tok_gg) { //ㅈㅈ문
-        auto cap = make_capture(func_proto_map[name].return_type, lexer);
+        auto cap = make_capture(func_proto_map[func_name].return_type, lexer);
         advance();
         auto body = parse_expr();
+        if (!body)
+            return nullptr;
         return make_unique<FuncRetAST>(std::move(body), std::move(cap));
     }
     if (cur_tok == tok_identifier) {
@@ -358,6 +355,11 @@ unique_ptr<AST> Parser::parse_primary() {
     }
 }
 
+//std::unique_ptr<AST> Parser::parse_if() {
+//
+//    return nullptr;
+//}
+
 unique_ptr<AST> Parser::parse_identifier() {
     auto name = lexer.get_word();
     auto loc = lexer.get_token_start_loc();
@@ -380,6 +382,7 @@ unique_ptr<AST> Parser::parse_identifier(string &name, pair<int, int> name_loc) 
             auto param_cnt = func_proto_map[name].params.size();
             if (param_cnt != args.size()) {
                 lexer.log_cur_token({"인자 개수가 맞지 않습니다. ", "\"", name, "\" 함수의 인자 개수는 ", to_string(param_cnt), "개 입니다."});
+                advance();
                 return nullptr;
             }
             advance();
@@ -387,7 +390,8 @@ unique_ptr<AST> Parser::parse_identifier(string &name, pair<int, int> name_loc) 
         }
         auto arg_start_loc = lexer.get_token_start_loc();
         auto arg = parse_expr();
-        if (!arg) return nullptr;
+        if (!arg)
+            return nullptr;
         args.emplace_back(std::move(arg), arg_start_loc, lexer.get_token_start_loc().second - arg_start_loc.second);
         if (cur_tok == tok_comma)
             advance();

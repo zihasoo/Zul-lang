@@ -28,13 +28,7 @@ struct AST;
 
 using LocalVarMap = std::unordered_map<std::string, std::pair<llvm::AllocaInst *, int>>;
 using GlobalVarMap = std::map<std::string, std::pair<llvm::GlobalVariable *, int>>;
-
-struct ZulValue {
-    llvm::Value *value;
-    int type_id;
-
-    operator std::pair<llvm::Value *, int>();
-};
+using ZulValue = std::pair<llvm::Value *, int>;
 
 struct ZulContext {
     std::unique_ptr<llvm::LLVMContext> context{new llvm::LLVMContext{}};
@@ -108,6 +102,28 @@ struct ImmStrAST : public AST {
     ZulValue code_gen(ZulContext &zulctx) override;
 };
 
+//struct IfAST : public AST {
+//    std::unique_ptr<AST> cond;
+//    std::unique_ptr<AST> body;
+//
+////    std::vector<std::unique_ptr<AST>> elif_ast;
+////    std::unique_ptr<AST> else_ast;
+//    IfAST(std::unique_ptr<AST> cond, std::unique_ptr<AST> body) :
+//            cond(std::move(cond)), body(std::move(body)) {}
+//
+//    ZulValue code_gen(ZulContext &zulctx) override {
+//
+//    }
+//};
+//
+//struct ElifAST : public AST {
+//    std::unique_ptr<AST> cond;
+//    std::unique_ptr<AST> body;
+//};
+//
+//struct ElseAST : public AST {
+//
+//};
 
 struct VariableAST : public AST {
     Capture<std::string> name;

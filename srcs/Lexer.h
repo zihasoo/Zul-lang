@@ -105,8 +105,6 @@ public:
 
     void log_cur_token(const std::initializer_list<std::string_view>& msgs); //분할 된 메세지를 받는 오버로드
 
-    static std::string token_to_string(Token token);
-
 private:
     std::string cur_line; //현재 줄
 
@@ -124,7 +122,9 @@ private:
 
     static std::unordered_map<std::string_view, Token> token_map; //토큰 문자열 - Token값 해시맵
 
-    void advance(); //현재 입력 스트림에서 한 글자 얻고 위치 기록
+    int inner_advance(); //입력 스트림에서 1바이트를 읽고 저장한 뒤 반환
+
+    void advance(); //입력 스트림에서 바이트를 적절히 읽어들여 유니코드로 변환 후 last_char에 저장
 };
 
 #endif //ZULLANG_LEXER_H
