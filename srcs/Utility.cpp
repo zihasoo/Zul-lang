@@ -9,7 +9,7 @@ std::map<int, std::string> type_name_map = {
         {0,  "논리"},
         {1,  "글자"},
         {2,  "수"},
-        {3,  "소수"},
+        {3,  "실수"},
         {4,  "글"}
 };
 
@@ -97,8 +97,6 @@ std::string token_to_string(Token token) {
             return "tok_int";
         case tok_real:
             return "tok_real";
-        case tok_string:
-            return "tok_string";
         case tok_eng:
             return "tok_eng";
         case tok_indent:

@@ -23,7 +23,6 @@ enum Token {
     tok_identifier,
     tok_int,
     tok_real,
-    tok_string,
     tok_eng,
     tok_indent,
     tok_newline,
@@ -42,7 +41,7 @@ enum Token {
     tok_dquotes, //"
     tok_squotes, //'
     tok_anno, // //
-    tok_va_arg, // ..
+    tok_va_arg, // ...
 
     tok_add, // +
     tok_sub, // -

@@ -153,6 +153,10 @@ Token Lexer::get_token() {
     if (last_word.size() <= 1) {
         advance();
         return tok_undefined;
+    } else if (last_word == "++" || last_word == "--") {
+        log_cur_token("줄랭에는 '++', '--' 단항 연산자가 존재하지 않습니다");
+        advance();
+        return tok_undefined;
     }
 
     last_word.pop_back();

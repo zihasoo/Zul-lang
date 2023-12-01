@@ -6,7 +6,7 @@
 #include <utility>
 #include <vector>
 #include <map>
-#include <set>
+#include <list>
 #include <stack>
 #include <unordered_map>
 
@@ -41,7 +41,7 @@ struct ZulContext {
     llvm::IRBuilder<> builder{*context};
     GlobalVarMap global_var_map;
     LocalVarMap local_var_map;
-    std::stack<std::set<std::string>> scope_stack;
+    std::stack<std::list<std::string>> scope_stack;
     std::stack<llvm::BasicBlock*> loop_update_stack;
     std::stack<llvm::BasicBlock*> loop_end_stack;
     llvm::BasicBlock *return_block;
@@ -113,12 +113,12 @@ struct ElseAST : public ExprAST {
 };
 
 struct LoopAST : public ExprAST {
-    ASTPtr init_loop;
-    ASTPtr test_loop;
-    ASTPtr update_loop;
-    std::vector<ASTPtr> body;
+    ASTPtr init_body;
+    ASTPtr test_body;
+    ASTPtr update_body;
+    std::vector<ASTPtr> loop_body;
 
-    LoopAST(ASTPtr init_for, ASTPtr test_for, ASTPtr update_for, std::vector<ASTPtr> body);
+    LoopAST(ASTPtr init_body, ASTPtr test_body, ASTPtr update_body, std::vector<ASTPtr> loop_body);
 
     ZulValue code_gen(ZulContext &zulctx) override;
 };
@@ -183,13 +183,13 @@ struct VariableAST : public ExprAST {
 };
 
 struct VariableDeclAST : public ExprAST {
-    std::string name;
+    Capture<std::string> name;
     int type = -1;
     ASTPtr body = nullptr;
 
-    VariableDeclAST(std::string name, int type);
+    VariableDeclAST(Capture<std::string> name, int type);
 
-    VariableDeclAST(std::string name, ASTPtr body);
+    VariableDeclAST(Capture<std::string> name, ASTPtr body);
 
     ZulValue code_gen(ZulContext &zulctx) override;
 };

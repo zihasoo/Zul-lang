@@ -130,7 +130,7 @@ pair<vector<pair<string, int>>, bool> Parser::parse_parameter() {
         auto name = lexer.get_word();
         advance();
         if (cur_tok != tok_colon)
-            lexer.log_cur_token({"예기치 않은 토큰 \"", lexer.get_word(), "\"", ". 콜론이 와야 합니다\""});
+            lexer.log_cur_token("콜론이 와야 합니다");
         advance();
         if (cur_tok != tok_identifier)
             lexer.log_cur_token("매개변수에는 타입을 명시해야 합니다.");
@@ -147,7 +147,7 @@ pair<vector<pair<string, int>>, bool> Parser::parse_parameter() {
         if (cur_tok == tok_rpar || cur_tok == tok_eof)
             break;
         if (cur_tok != tok_comma) {
-            lexer.log_cur_token({"예기치 않은 토큰 \"", lexer.get_word(), "\"", ". 콤마가 와야 합니다\""});
+            lexer.log_cur_token("콤마가 와야 합니다");
         }
         advance();
     }
@@ -164,7 +164,7 @@ void Parser::parse_func_def(string &func_name, pair<int, int> name_loc, int targ
         if (type_map.contains(type_name)) {
             cur_func_ret_type = type_map[type_name];
         } else {
-            lexer.log_cur_token({"\"", type_name, "\"은 존재하지 않는 타입입니다."});
+            lexer.log_cur_token({"\"", type_name, "\" 는 존재하지 않는 타입입니다."});
         }
         advance();
     }
@@ -178,7 +178,7 @@ void Parser::parse_func_def(string &func_name, pair<int, int> name_loc, int targ
         return;
     }
     if (cur_tok != tok_colon)
-        lexer.log_cur_token({"예기치 않은 토큰 \"", lexer.get_word(), "\" 콜론이 와야 합니다"});
+        lexer.log_cur_token("콜론이 와야 합니다");
     advance();
     if (cur_tok != tok_newline)
         lexer.log_cur_token({"예기치 않은 토큰 \"", lexer.get_word(), "\""});
@@ -238,8 +238,6 @@ std::pair<ASTPtr, int> Parser::parse_line(int start_level, int target_level) {
         auto cap = make_capture(cur_func_ret_type, lexer);
         advance();
         auto body = parse_expr();
-        if (!body)
-            return {nullptr, -1};
         ret = make_unique<FuncRetAST>(std::move(body), std::move(cap));
     } else if (cur_tok == tok_tt) { //ㅌㅌ
         if (zulctx.scope_stack.empty()) {
@@ -292,7 +290,7 @@ ASTPtr Parser::parse_local_var(string &name, pair<int, int> name_loc) {
     if (op_cap.value == tok_colon) { //선언만
         advance();
         if (cur_tok != tok_identifier) {
-            lexer.log_cur_token({"예기치 않은 토큰 \"", lexer.get_word(), "\"", ". 타입이 와야 합니다"});
+            lexer.log_cur_token("타입이 와야 합니다");
             advance();
             return nullptr;
         }
@@ -307,9 +305,9 @@ ASTPtr Parser::parse_local_var(string &name, pair<int, int> name_loc) {
         }
         zulctx.local_var_map.emplace(name, make_pair(nullptr, -1)); //이름만 등록 해놓기
         if (!zulctx.scope_stack.empty()) { //만약 스코프 안에 있다면
-            zulctx.scope_stack.top().insert(name); //가장 가까운 스코프에 변수 등록
+            zulctx.scope_stack.top().push_back(name); //가장 가까운 스코프에 변수 등록
         }
-        return make_unique<VariableDeclAST>(std::move(name), type_map[type]);
+        return make_unique<VariableDeclAST>(Capture(std::move(name), name_loc, name.size()), type_map[type]);
     } else { //대입 연산
         advance();
         ASTPtr body = parse_expr();
@@ -319,9 +317,9 @@ ASTPtr Parser::parse_local_var(string &name, pair<int, int> name_loc) {
             if (op_cap.value == tok_assn) {
                 zulctx.local_var_map.emplace(name, make_pair(nullptr, -1)); //이름만 등록 해놓기
                 if (!zulctx.scope_stack.empty()) { //만약 스코프 안에 있다면
-                    zulctx.scope_stack.top().insert(name); //가장 가까운 스코프에 변수 등록
+                    zulctx.scope_stack.top().push_back(name); //가장 가까운 스코프에 변수 등록
                 }
-                return make_unique<VariableDeclAST>(std::move(name), std::move(body));
+                return make_unique<VariableDeclAST>(Capture(std::move(name), name_loc, name.size()), std::move(body));
             } else {
                 System::logger.log_error(name_loc, name.size(), {"\"", name, "\" 는 존재하지 않는 변수입니다"});
                 return nullptr;
@@ -423,8 +421,6 @@ std::pair<ASTPtr, int> Parser::parse_for(int target_level) {
         update_for = parse_expr_start();
     } else if (expr) {
         test_for = std::move(expr);
-    } else {
-        test_for = make_unique<ImmBoolAST>(true);
     }
     if (cur_tok != tok_colon) {
         lexer.log_cur_token({"예기치 않은 토큰 \"", lexer.get_word(), "\" 콜론이 와야 합니다"});
@@ -478,7 +474,7 @@ ASTPtr Parser::parse_identifier(string &name, pair<int, int> name_loc) {
         return make_unique<VariableAST>(name);
     }
     if (!func_proto_map.contains(name)) {
-        System::logger.log_error(name_loc, name.size(), {"\"", name, "\"은 존재하지 않는 함수입니다"});
+        System::logger.log_error(name_loc, name.size(), {"\"", name, "\" 는 존재하지 않는 함수입니다"});
         return nullptr;
     }
     advance();
@@ -582,7 +578,8 @@ void Parser::create_func(FuncProtoAST &proto, const vector<ASTPtr> &body) {
     zulctx.builder.SetInsertPoint(entry_block);
 
     if (zulctx.ret_count > 1) {
-        zulctx.return_var = zulctx.builder.CreateAlloca(get_llvm_type(*zulctx.context, proto.return_type), nullptr);
+        if (proto.return_type != -1)
+            zulctx.return_var = zulctx.builder.CreateAlloca(get_llvm_type(*zulctx.context, proto.return_type), nullptr);
         zulctx.return_block = BasicBlock::Create(*zulctx.context, "func_ret", llvm_func);
     }
 
@@ -598,8 +595,12 @@ void Parser::create_func(FuncProtoAST &proto, const vector<ASTPtr> &body) {
 
     if (zulctx.ret_count > 1) {
         zulctx.builder.SetInsertPoint(zulctx.return_block);
-        auto ret = zulctx.builder.CreateLoad(zulctx.return_var->getType(), zulctx.return_var);
-        zulctx.builder.CreateRet(ret);
+        if (proto.return_type == -1) {
+            zulctx.builder.CreateRetVoid();
+        } else {
+            auto ret = zulctx.builder.CreateLoad(zulctx.return_var->getType(), zulctx.return_var);
+            zulctx.builder.CreateRet(ret);
+        }
     } else if (proto.name == ENTRY_FN_NAME && zulctx.ret_count == 0) {
         zulctx.builder.CreateRet(ConstantInt::get(Type::getInt64Ty(*zulctx.context), 0, true));
     }

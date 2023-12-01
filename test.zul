@@ -7,18 +7,18 @@
 
 ㅎㅇ puti(x: 수)
 
-ㅎㅇ putd(x: 소수)
+ㅎㅇ putd(x: 실수)
 
-
-ㅎㅇ fun(ㄱ: 수, ㄴ: 소수) 소수:
-    ㄱㄱ v = 1; v < 5; v+=1 :
-        ㅈㅈ ㄱ + v * ㄴ
-    ㅈㅈ ㄱ - ㄴ
+ㅎㅇ fib(n: 수) 수:
+    ㄱㄱ n <= 1:
+        ㅈㅈ n
+    ㅈㅈ fib(n - 1) + fib(n - 2)
 
 ㅎㅇ main() 수:
-    ㄱㄱ v1 = 1; v1 < 10; v1 += 1:
-        ㄱㄱ v2 = 1; v2 <= 1 << 10; v2 <<= 1:
-            printf("%d * %d = %d\n", v1, v2, v1 * v2)
+    ㄱㄱ i = 1; i <= 20; i+=1:
+        ㄱㄱ j = 1; j <= 10; j+=1:
+            ㄱㄱ k = 1; k <= 5; k+=1:
+                printf("k: %d %d\n",k, fib(k))
+            printf("j: %d %d\n",j, fib(j))
+        printf("i: %d %d\n",i, fib(i))
 
-
-    printf("%f", 10.3)
