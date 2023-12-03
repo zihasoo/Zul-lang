@@ -4,19 +4,22 @@
 #include <utility>
 #include <map>
 #include <string>
-#include <string_view>
+#include <functional>
 
+#include <llvm/IR/Instructions.h>
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Type.h"
 
+#include "ZulContext.h"
 #include "Lexer.h"
 
 #define BOOL_TYPEID 0 //기본 타입의 시작 번호
 #define FLOAT_TYPEID 3 //기본 타입의 끝 번호
 #define ENTRY_FN_NAME "main"
 
+extern ZulValue nullzul;
 extern std::map<int, std::string> type_name_map;
 
 template<typename T>
@@ -40,11 +43,30 @@ Capture<T> make_capture(T value, Lexer &lexer) {
     return Capture(std::move(value), lexer.get_token_start_loc(), lexer.get_word().size());
 }
 
+struct Guard {
+    const std::function<void()> target;
+    explicit Guard (std::function<void()> target) : target(std::move(target)) {}
+
+    ~Guard() {
+        target();
+    }
+};
+
 llvm::Constant *get_const_zero(llvm::Type *llvm_type, int type_num);
 
 llvm::Constant *get_const_zero(llvm::LLVMContext &context, int type_num);
 
 llvm::Type *get_llvm_type(llvm::LLVMContext &context, int type_num);
+
+bool create_cast(ZulContext &zulctx, ZulValue &target, int dest_type_id);
+
+llvm::Value *create_int_operation(ZulContext &zulctx, llvm::Value *lhs, llvm::Value *rhs, Capture<Token> &op);
+
+llvm::Value *create_float_operation(ZulContext &zulctx, llvm::Value *lhs, llvm::Value *rhs, Capture<Token> &op);
+
+bool is_cmp(Token op);
+
+bool to_boolean_expr(ZulContext &zulctx, ZulValue &expr);
 
 int get_byte_count(int c);
 

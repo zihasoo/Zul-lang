@@ -15,6 +15,7 @@
 #include "llvm/IR/Value.h"
 #include "llvm/TargetParser/Host.h"
 
+#include "ZulContext.h"
 #include "System.h"
 #include "Utility.h"
 #include "Lexer.h"
@@ -57,6 +58,8 @@ private:
 
     ASTPtr parse_primary();
 
+    std::pair<ASTPtr, bool> parse_if_header();
+
     std::pair<ASTPtr, int> parse_if(int target_level);
 
     std::pair<ASTPtr, int> parse_for(int target_level);
@@ -73,7 +76,9 @@ private:
 
     ASTPtr parse_char();
 
-    void create_func(FuncProtoAST &proto, const std::vector<ASTPtr>& body);
+    std::pair<std::vector<ASTPtr>, int> parse_block_body(int target_level);
+
+    void create_func(FuncProtoAST &proto, const std::vector<ASTPtr>& body, std::pair<int,int> name_loc);
 
     void advance();
 

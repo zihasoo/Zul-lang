@@ -5,7 +5,7 @@ using namespace llvm;
 
 Parser::Parser(const string &source_name) : lexer(source_name) {
     zulctx.module->setSourceFileName(source_name);
-    zulctx.module->setTargetTriple("x86_64-pc-windows-msvc19.36.32534");
+    zulctx.module->setTargetTriple(sys::getDefaultTargetTriple());
     advance();
 }
 
@@ -92,6 +92,7 @@ void Parser::parse_global_var() {
             int type_id = type_map[type_name];
             auto llvm_type = get_llvm_type(*zulctx.context, type_id);
             auto init_val = get_const_zero(llvm_type, type_id);
+            //GlobalVariable 소멸자 호출되면 dropAllReferences 때문에 에러남. 어쩔 수 없이 그냥 동적할당 사용.
             zulctx.global_var_map.emplace(var_name, make_pair(new GlobalVariable(
                     *zulctx.module, llvm_type, false, GlobalVariable::ExternalLinkage, init_val, var_name), type_id));
             advance();
@@ -185,31 +186,13 @@ void Parser::parse_func_def(string &func_name, pair<int, int> name_loc, int targ
     advance();
     func_proto_map.emplace(func_name, FuncProtoAST(func_name, cur_func_ret_type, std::move(params), true, is_var_arg));
 //---------------------------------함수 몸체 파싱---------------------------------
-    vector<ASTPtr> func_body;
-    while (true) {
-        if (cur_tok == tok_newline) {
-            advance();
-            continue;
-        }
-        auto [parsed_expr, stop_level] = parse_line(0, target_level);
-        if (parsed_expr) {
-            func_body.push_back(std::move(parsed_expr));
-        }
-        if (stop_level == target_level) {
-            parsed_expr = parse_line(stop_level, target_level).first;
-            if (parsed_expr) {
-                func_body.push_back(std::move(parsed_expr));
-            }
-        } else if (stop_level != -1 && stop_level < target_level) {
-            if (func_body.empty() && !System::logger.has_error()) {
-                System::logger.log_error(name_loc, func_name.size(),
-                                         "함수의 몸체가 정의되지 않았습니다\n(함수 선언만 하기 위해선 콜론을 사용하지 않아야 합니다)");
-                return;
-            }
-            break;
-        }
+    auto [func_body, stop_level] = parse_block_body(target_level);
+    if (func_body.empty() && !System::logger.has_error()) {
+        System::logger.log_error(name_loc, func_name.size(),
+                                 "함수의 몸체가 정의되지 않았습니다\n(함수 선언만 하기 위해선 콜론을 사용하지 않아야 합니다)");
+        return;
     }
-    create_func(func_proto_map[func_name], func_body);
+    create_func(func_proto_map[func_name], func_body, name_loc);
 }
 
 std::pair<ASTPtr, int> Parser::parse_line(int start_level, int target_level) {
@@ -240,14 +223,14 @@ std::pair<ASTPtr, int> Parser::parse_line(int start_level, int target_level) {
         auto body = parse_expr();
         ret = make_unique<FuncRetAST>(std::move(body), std::move(cap));
     } else if (cur_tok == tok_tt) { //ㅌㅌ
-        if (zulctx.scope_stack.empty()) {
+        if (!zulctx.in_loop) {
             lexer.log_cur_token("ㅌㅌ문을 사용할 수 없습니다. 루프가 아닙니다");
             return {nullptr, -1};
         }
         advance();
         ret = make_unique<ContinueAST>();
     } else if (cur_tok == tok_sg) { //ㅅㄱ
-        if (zulctx.scope_stack.empty()) {
+        if (!zulctx.in_loop) {
             lexer.log_cur_token("ㅅㄱ문을 사용할 수 없습니다. 루프가 아닙니다");
             return {nullptr, -1};
         }
@@ -287,6 +270,7 @@ ASTPtr Parser::parse_expr_start() {
 ASTPtr Parser::parse_local_var(string &name, pair<int, int> name_loc) {
     bool is_exist = zulctx.global_var_map.contains(name) || zulctx.local_var_map.contains(name);
     auto op_cap = make_capture(cur_tok, lexer);
+    auto name_cap = Capture(std::move(name), name_loc, name.size());
     if (op_cap.value == tok_colon) { //선언만
         advance();
         if (cur_tok != tok_identifier) {
@@ -300,14 +284,10 @@ ASTPtr Parser::parse_local_var(string &name, pair<int, int> name_loc) {
             advance();
             return nullptr;
         } else if (is_exist) {
-            System::logger.log_error(name_loc, name.size(), "변수가 재정의되었습니다");
+            System::logger.log_error(name_loc, name_cap.word_size, "변수가 재정의되었습니다");
             return nullptr;
         }
-        zulctx.local_var_map.emplace(name, make_pair(nullptr, -1)); //이름만 등록 해놓기
-        if (!zulctx.scope_stack.empty()) { //만약 스코프 안에 있다면
-            zulctx.scope_stack.top().push_back(name); //가장 가까운 스코프에 변수 등록
-        }
-        return make_unique<VariableDeclAST>(Capture(std::move(name), name_loc, name.size()), type_map[type]);
+        return make_unique<VariableDeclAST>(std::move(name_cap), type_map[type], zulctx);
     } else { //대입 연산
         advance();
         ASTPtr body = parse_expr();
@@ -315,17 +295,13 @@ ASTPtr Parser::parse_local_var(string &name, pair<int, int> name_loc) {
             return nullptr;
         if (!is_exist) {
             if (op_cap.value == tok_assn) {
-                zulctx.local_var_map.emplace(name, make_pair(nullptr, -1)); //이름만 등록 해놓기
-                if (!zulctx.scope_stack.empty()) { //만약 스코프 안에 있다면
-                    zulctx.scope_stack.top().push_back(name); //가장 가까운 스코프에 변수 등록
-                }
-                return make_unique<VariableDeclAST>(Capture(std::move(name), name_loc, name.size()), std::move(body));
+                return make_unique<VariableDeclAST>(std::move(name_cap), std::move(body), zulctx);
             } else {
-                System::logger.log_error(name_loc, name.size(), {"\"", name, "\" 는 존재하지 않는 변수입니다"});
+                System::logger.log_error(name_loc, name_cap.word_size, {"\"", name_cap.value, "\" 는 존재하지 않는 변수입니다"});
                 return nullptr;
             }
         }
-        return make_unique<VariableAssnAST>(make_unique<VariableAST>(std::move(name)), std::move(op_cap),
+        return make_unique<VariableAssnAST>(make_unique<VariableAST>(std::move(name_cap.value)), std::move(op_cap),
                                             std::move(body));
     }
 }
@@ -397,16 +373,99 @@ ASTPtr Parser::parse_primary() {
     }
 }
 
-std::pair<ASTPtr, int> Parser::parse_if(int target_level) {
+std::pair<std::vector<ASTPtr>, int> Parser::parse_block_body(int target_level) {
+    vector<ASTPtr> body;
+    int start_level = 0;
+    while (true) {
+        if (cur_tok == tok_newline) {
+            advance();
+            continue;
+        }
+        auto [parsed_expr, stop_level] = parse_line(start_level, target_level);
+        if (parsed_expr)
+            body.push_back(std::move(parsed_expr));
+        if (stop_level == -1) {
+            start_level = 0;
+        } else if (stop_level < target_level) {
+            return {std::move(body), stop_level};
+        } else {
+            start_level = stop_level;
+        }
+    }
+}
 
-    return {nullptr, 0};
+pair<ASTPtr, bool> Parser::parse_if_header() {
+    ASTPtr cond;
+    bool error = false;
+    cond = parse_expr();
+    if (!cond) {
+        lexer.log_cur_token("조건식이 필요합니다");
+        error = true;
+    }
+    if (cur_tok != tok_colon) {
+        lexer.log_cur_token("콜론이 필요합니다");
+        error = true;
+    }
+    advance();
+    return {std::move(cond), error};
+}
+
+std::pair<ASTPtr, int> Parser::parse_if(int target_level) {
+    CondBodyPair if_pair;
+    std::vector<CondBodyPair> elif_pair_list;
+    std::vector<ASTPtr> else_body;
+//---------------------------------if문 파싱---------------------------------
+    zulctx.scope_stack.emplace();
+    auto [if_cond, error] = parse_if_header();
+    auto [if_body, stop_level] = parse_block_body(target_level);
+    zulctx.remove_top_scope_vars();
+    if (if_body.empty() && !System::logger.has_error()) {
+        lexer.log_cur_token("ㅇㅈ?문의 몸체가 정의되지 않았습니다");
+        error = true;
+    }
+    if_pair = {std::move(if_cond), std::move(if_body)};
+//---------------------------------elif문 파싱---------------------------------
+    while (stop_level == target_level - 1 && cur_tok == tok_no) {
+        zulctx.scope_stack.emplace();
+        advance();
+        auto [elif_cond, elif_err] = parse_if_header();
+        auto [elif_body, level] = parse_block_body(target_level);
+        zulctx.remove_top_scope_vars();
+        stop_level = level;
+        error = error || elif_err;
+        if (elif_body.empty() && !System::logger.has_error()) {
+            lexer.log_cur_token("ㄴㄴ?문의 몸체가 정의되지 않았습니다");
+            error = true;
+        }
+        elif_pair_list.emplace_back(std::move(elif_cond), std::move(elif_body));
+    }
+//---------------------------------else문 파싱---------------------------------
+    if (stop_level == target_level - 1 && cur_tok == tok_nope) {
+        advance();
+        zulctx.scope_stack.emplace();
+        if (cur_tok != tok_colon) {
+            lexer.log_cur_token("콜론이 필요합니다");
+            error = true;
+        }
+        advance();
+        auto [body, level] = parse_block_body(target_level);
+        zulctx.remove_top_scope_vars();
+        stop_level = level;
+        if (body.empty() && !System::logger.has_error()) {
+            lexer.log_cur_token("ㄴㄴ문의 몸체가 정의되지 않았습니다");
+            error = true;
+        }
+        else_body = std::move(body);
+    }
+    if (error)
+        return {nullptr, stop_level};
+    return {make_unique<IfAST>(std::move(if_pair), std::move(elif_pair_list), std::move(else_body)), stop_level};
 }
 
 std::pair<ASTPtr, int> Parser::parse_for(int target_level) {
     ASTPtr init_for = nullptr;
     ASTPtr test_for = nullptr;
     ASTPtr update_for = nullptr;
-    vector<ASTPtr> for_body;
     zulctx.scope_stack.emplace(); //스코프 등록
 //---------------------------------for문 헤더 파싱---------------------------------
     auto expr = parse_expr_start();
@@ -427,35 +486,16 @@ std::pair<ASTPtr, int> Parser::parse_for(int target_level) {
     }
     advance();
 //---------------------------------for문 몸체 파싱---------------------------------
-    while (true) {
-        if (cur_tok == tok_newline) {
-            advance();
-            continue;
-        }
-        auto [parsed_expr, stop_level] = parse_line(0, target_level);
-        if (parsed_expr) {
-            for_body.push_back(std::move(parsed_expr));
-        }
-        if (stop_level == target_level) {
-            parsed_expr = parse_line(stop_level, target_level).first;
-            if (parsed_expr) {
-                for_body.push_back(std::move(parsed_expr));
-            }
-        } else if (stop_level != -1 && stop_level < target_level) {
-            if (for_body.empty() && !System::logger.has_error()) {
-                lexer.log_cur_token("ㄱㄱ문의 몸체가 정의되지 않았습니다");
-                return {nullptr, stop_level};
-            }
-            //스코프 벗어날 때 생성한 변수들 맵에서 삭제 (IR코드에는 남아있음. 맵에서 지워서 접근만 막는 것)
-            auto &cur_scope_vars = zulctx.scope_stack.top();
-            for (auto &name: cur_scope_vars) {
-                zulctx.local_var_map.erase(name);
-            }
-            zulctx.scope_stack.pop();
-            return {make_unique<LoopAST>(std::move(init_for), std::move(test_for), std::move(update_for),
-                                         std::move(for_body)), stop_level};
-        }
+    zulctx.in_loop = true;
+    auto [for_body, stop_level] = parse_block_body(target_level);
+    zulctx.in_loop = false;
+    zulctx.remove_top_scope_vars();
+    if (for_body.empty() && !System::logger.has_error()) {
+        lexer.log_cur_token("ㄱㄱ문의 몸체가 정의되지 않았습니다");
+        return {nullptr, stop_level};
     }
+    return {make_unique<LoopAST>(std::move(init_for), std::move(test_for), std::move(update_for),
+                                 std::move(for_body)), stop_level};
 }
 
 ASTPtr Parser::parse_identifier() {
@@ -572,37 +612,53 @@ ASTPtr Parser::parse_char() {
     return make_unique<ImmCharAST>(str[0]);
 }
 
-void Parser::create_func(FuncProtoAST &proto, const vector<ASTPtr> &body) {
+void Parser::create_func(FuncProtoAST &proto, const vector<ASTPtr> &body, std::pair<int,int> name_loc) {
     auto llvm_func = proto.code_gen(zulctx);
     auto entry_block = BasicBlock::Create(*zulctx.context, "entry", llvm_func);
     zulctx.builder.SetInsertPoint(entry_block);
 
     if (zulctx.ret_count > 1) {
         if (proto.return_type != -1)
-            zulctx.return_var = zulctx.builder.CreateAlloca(get_llvm_type(*zulctx.context, proto.return_type), nullptr);
-        zulctx.return_block = BasicBlock::Create(*zulctx.context, "func_ret", llvm_func);
+            zulctx.return_var = zulctx.builder.CreateAlloca(get_llvm_type(*zulctx.context, proto.return_type), nullptr,
+                                                            "ret");
+        zulctx.return_block = BasicBlock::Create(*zulctx.context, "func_ret");
     }
 
     int i = 0;
     for (auto &arg: llvm_func->args()) {
         auto alloca_val = zulctx.builder.CreateAlloca(arg.getType(), nullptr, arg.getName());
         zulctx.builder.CreateStore(&arg, alloca_val);
-        zulctx.local_var_map[arg.getName().str()] = make_pair(alloca_val, proto.params[i++].second);
+        zulctx.local_var_map[proto.params[i].first] = make_pair(alloca_val, proto.params[i].second);
+        i++;
     }
 
-    for (auto &ast: body)
-        ast->code_gen(zulctx);
+    for (auto &ast: body) {
+        auto code = ast->code_gen(zulctx).second;
+        if (code == -10)
+            break;
+    }
 
+    if (zulctx.builder.GetInsertBlock()->empty() || zulctx.ret_count == 0) {
+        if (proto.name == ENTRY_FN_NAME) {
+            if (zulctx.ret_count > 1)
+                zulctx.builder.CreateBr(zulctx.return_block);
+            else
+                zulctx.builder.CreateRet(ConstantInt::get(Type::getInt64Ty(*zulctx.context), 0, true));
+        } else if (proto.return_type == -1) {
+            zulctx.builder.CreateRetVoid();
+        } else {
+            System::logger.log_error(name_loc, proto.name.size(), {"\"",proto.name ,"\" 함수의 리턴 타입은 \"", type_name_map[proto.return_type], "\" 입니다. ㅈㅈ구문이 필요합니다"});
+        }
+    }
     if (zulctx.ret_count > 1) {
+        llvm_func->insert(llvm_func->end(), zulctx.return_block);
         zulctx.builder.SetInsertPoint(zulctx.return_block);
         if (proto.return_type == -1) {
             zulctx.builder.CreateRetVoid();
         } else {
-            auto ret = zulctx.builder.CreateLoad(zulctx.return_var->getType(), zulctx.return_var);
+            auto ret = zulctx.builder.CreateLoad(zulctx.return_var->getAllocatedType(), zulctx.return_var);
             zulctx.builder.CreateRet(ret);
         }
-    } else if (proto.name == ENTRY_FN_NAME && zulctx.ret_count == 0) {
-        zulctx.builder.CreateRet(ConstantInt::get(Type::getInt64Ty(*zulctx.context), 0, true));
     }
     verifyFunction(*llvm_func);
     zulctx.local_var_map.clear();

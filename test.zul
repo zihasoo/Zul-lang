@@ -1,24 +1,10 @@
 
 ㅎㅇ printf(x: 글, ...) 수
-
 ㅎㅇ puts(x: 글) 수
 
-ㅎㅇ putchar(x: 수) 수
-
-ㅎㅇ puti(x: 수)
-
-ㅎㅇ putd(x: 실수)
-
-ㅎㅇ fib(n: 수) 수:
-    ㄱㄱ n <= 1:
-        ㅈㅈ n
-    ㅈㅈ fib(n - 1) + fib(n - 2)
-
 ㅎㅇ main() 수:
-    ㄱㄱ i = 1; i <= 20; i+=1:
-        ㄱㄱ j = 1; j <= 10; j+=1:
-            ㄱㄱ k = 1; k <= 5; k+=1:
-                printf("k: %d %d\n",k, fib(k))
-            printf("j: %d %d\n",j, fib(j))
-        printf("i: %d %d\n",i, fib(i))
-
+    n = 5
+    ㄱㄱ i = 1; i <= n; i+=1:
+        ㄱㄱ j = 0; j < i; j+=1:
+            printf("*")
+        printf("\n")

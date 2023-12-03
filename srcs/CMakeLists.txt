@@ -14,4 +14,6 @@ add_executable(
         Parser.h
         AST.h
         AST.cpp
+        ZulContext.cpp
+        ZulContext.h
 )
