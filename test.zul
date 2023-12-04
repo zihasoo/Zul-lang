@@ -3,8 +3,7 @@
 ㅎㅇ puts(x: 글) 수
 
 ㅎㅇ main() 수:
-    n = 5
-    ㄱㄱ i = 1; i <= n; i+=1:
-        ㄱㄱ j = 0; j < i; j+=1:
-            printf("*")
-        printf("\n")
+    ㅇㅈ? (5 && 1) || 0:
+        puts("true")
+    ㄴㄴ:
+        puts("false")

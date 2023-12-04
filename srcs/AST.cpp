@@ -59,14 +59,14 @@ IfAST::IfAST(CondBodyPair if_pair, std::vector<CondBodyPair> elif_pair_list, std
         if_pair(std::move(if_pair)), elif_pair_list(std::move(elif_pair_list)), else_body(std::move(else_body)) {}
 
 ZulValue IfAST::code_gen(ZulContext &zulctx) {
+    auto prev_cond = if_pair.first->code_gen(zulctx);
+    if (!prev_cond.first || !to_boolean_expr(zulctx, prev_cond))
+        return nullzul;
+
     auto func = zulctx.builder.GetInsertBlock()->getParent();
     auto body_block = llvm::BasicBlock::Create(*zulctx.context, "if", func);
     auto merge_block = llvm::BasicBlock::Create(*zulctx.context, "merge");
     auto prev_block = zulctx.builder.GetInsertBlock();
-
-    auto prev_cond = if_pair.first->code_gen(zulctx);
-    if (!prev_cond.first || !to_boolean_expr(zulctx, prev_cond))
-        return nullzul;
 
     zulctx.builder.SetInsertPoint(body_block);
     bool interrupted = false;
@@ -306,7 +306,46 @@ BinOpAST::BinOpAST(ASTPtr left, ASTPtr right, Capture<Token> op) : left(std::mov
                                                                    right(std::move(right)),
                                                                    op(std::move(op)) {}
 
+ZulValue BinOpAST::short_circuit_code_gen(ZulContext &zulctx) {
+    auto lhs = left->code_gen(zulctx);
+    if (!lhs.first)
+        return nullzul;
+    if (!to_boolean_expr(zulctx, lhs)) {
+        System::logger.log_error(op.loc, op.word_size, "좌측항을 \"논리\" 자료형으로 캐스팅 할 수 없습니다");
+        return nullzul;
+    }
+
+    auto origin_block = zulctx.builder.GetInsertBlock();
+    auto func = zulctx.builder.GetInsertBlock()->getParent();
+    auto sc_test = llvm::BasicBlock::Create(*zulctx.context, "sc_test", func);
+    auto sc_end = llvm::BasicBlock::Create(*zulctx.context, "sc_end", func);
+
+    if (op.value == tok_and)
+        zulctx.builder.CreateCondBr(lhs.first, sc_test, sc_end);
+    else
+        zulctx.builder.CreateCondBr(lhs.first, sc_end, sc_test);
+
+    zulctx.builder.SetInsertPoint(sc_test);
+    auto rhs = right->code_gen(zulctx);
+    if (!rhs.first)
+        return nullzul;
+    if (!to_boolean_expr(zulctx, rhs)) {
+        System::logger.log_error(op.loc, op.word_size, "우측항을 \"논리\" 자료형으로 캐스팅 할 수 없습니다");
+        return nullzul;
+    }
+    zulctx.builder.CreateBr(sc_end);
+
+    zulctx.builder.SetInsertPoint(sc_end);
+    auto phi = zulctx.builder.CreatePHI(get_llvm_type(*zulctx.context, 0), 2);
+    phi->addIncoming(llvm::ConstantInt::getBool(*zulctx.context, op.value == tok_or), origin_block);
+    phi->addIncoming(rhs.first, sc_test);
+    return {phi, 0};
+}
+
 ZulValue BinOpAST::code_gen(ZulContext &zulctx) {
+    if (op.value == tok_and || op.value == tok_or) {
+        return short_circuit_code_gen(zulctx);
+    }
     auto lhs = left->code_gen(zulctx);
     auto rhs = right->code_gen(zulctx);
     if (!lhs.first || !rhs.first)

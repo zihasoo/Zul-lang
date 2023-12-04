@@ -666,46 +666,46 @@ void Parser::create_func(FuncProtoAST &proto, const vector<ASTPtr> &body, std::p
 }
 
 std::unordered_map<Token, int> Parser::op_prec_map = {
-        {tok_bitnot,      490}, // ~
-        {tok_not,         490}, // !
+        {tok_bitnot,      120}, // ~
+        {tok_not,         120}, // !
 
-        {tok_mul,         480}, // *
-        {tok_div,         480}, // /
-        {tok_mod,         480}, // %
+        {tok_mul,         110}, // *
+        {tok_div,         110}, // /
+        {tok_mod,         110}, // %
 
-        {tok_add,         470}, // +
-        {tok_sub,         470}, // -
+        {tok_add,         100}, // +
+        {tok_sub,         100}, // -
 
-        {tok_lshift,      460}, // <<
-        {tok_rshift,      460}, // >>
+        {tok_lshift,      90}, // <<
+        {tok_rshift,      90}, // >>
 
-        {tok_lt,          450}, // <
-        {tok_gt,          450}, // >
-        {tok_lteq,        450}, // <=
-        {tok_gteq,        450}, // >=
+        {tok_lt,          80}, // <
+        {tok_gt,          80}, // >
+        {tok_lteq,        80}, // <=
+        {tok_gteq,        80}, // >=
 
-        {tok_eq,          440}, // ==
-        {tok_ineq,        440}, // !=
+        {tok_eq,          70}, // ==
+        {tok_ineq,        70}, // !=
 
-        {tok_bitand,      430}, // &
+        {tok_bitand,      60}, // &
 
-        {tok_bitxor,      420}, // ^
+        {tok_bitxor,      50}, // ^
 
-        {tok_bitor,       410}, // |
+        {tok_bitor,       40}, // |
 
-        {tok_and,         400}, // &&
+        {tok_and,         30}, // &&
 
-        {tok_or,          390}, // ||
+        {tok_or,          20}, // ||
 
-        {tok_assn,        380}, // =
-        {tok_mul_assn,    380}, // *=
-        {tok_div_assn,    380}, // /=
-        {tok_mod_assn,    380}, // %=
-        {tok_add_assn,    380}, // +=
-        {tok_sub_assn,    380}, // -=
-        {tok_lshift_assn, 380}, // <<=
-        {tok_rshift_assn, 380}, // >>=
-        {tok_and_assn,    380}, // &=
-        {tok_or_assn,     380}, // |=
-        {tok_xor_assn,    380}, // ^=
+        {tok_assn,        10}, // =
+        {tok_mul_assn,    10}, // *=
+        {tok_div_assn,    10}, // /=
+        {tok_mod_assn,    10}, // %=
+        {tok_add_assn,    10}, // +=
+        {tok_sub_assn,    10}, // -=
+        {tok_lshift_assn, 10}, // <<=
+        {tok_rshift_assn, 10}, // >>=
+        {tok_and_assn,    10}, // &=
+        {tok_or_assn,     10}, // |=
+        {tok_xor_assn,    10}, // ^=
 };

@@ -125,6 +125,7 @@ struct BinOpAST : public ExprAST {
 
     BinOpAST(ASTPtr left, ASTPtr right, Capture<Token> op);
 
+    ZulValue short_circuit_code_gen(ZulContext &zulctx);
 
     ZulValue code_gen(ZulContext &zulctx) override;
 };

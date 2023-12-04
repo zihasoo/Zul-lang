@@ -105,9 +105,6 @@ llvm::Value *create_int_operation(ZulContext &zulctx, llvm::Value *lhs, llvm::Va
             return zulctx.builder.CreateICmpSLT(lhs, rhs);
         case tok_lteq:
             return zulctx.builder.CreateICmpSLE(lhs, rhs);
-        case tok_and:
-        case tok_or:
-            //short circuit 어떻게 구현?
         default:
             System::logger.log_error(op.loc, op.word_size, "해당 연산자를 수 타입에 적용할 수 없습니다");
             return nullptr;
