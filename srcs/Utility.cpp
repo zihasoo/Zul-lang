@@ -58,7 +58,13 @@ bool create_cast(ZulContext &zulctx, ZulValue &target, int dest_type_id) {
         return false;
     if (dest_type_id == FLOAT_TYPEID) {
         target.first = zulctx.builder.CreateSIToFP(target.first, llvm::Type::getDoubleTy(*zulctx.context));
-    } else if (BOOL_TYPEID <= dest_type_id && dest_type_id < FLOAT_TYPEID) {
+    } else if (dest_type_id == BOOL_TYPEID) {
+        if (target.second == FLOAT_TYPEID) {
+            target.first = zulctx.builder.CreateFCmpONE(target.first, get_const_zero(*zulctx.context, 0));
+        } else {
+            target.first = zulctx.builder.CreateICmpNE(target.first, get_const_zero(*zulctx.context, 0));
+        }
+    } else if (BOOL_TYPEID < dest_type_id && dest_type_id < FLOAT_TYPEID) {
         auto dest_type = get_llvm_type(*zulctx.context, dest_type_id);
         if (target.second == FLOAT_TYPEID) {
             target.first = zulctx.builder.CreateFPToSI(target.first, dest_type);

@@ -3,7 +3,6 @@
 ㅎㅇ puts(x: 글) 수
 
 ㅎㅇ main() 수:
-    ㅇㅈ? (5 && 1) || 0:
-        puts("true")
-    ㄴㄴ:
-        puts("false")
+    a: 논리 = 1
+    n: 수 = a
+    printf("%d", n)

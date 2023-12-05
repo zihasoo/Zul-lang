@@ -271,7 +271,7 @@ ASTPtr Parser::parse_local_var(string &name, pair<int, int> name_loc) {
     bool is_exist = zulctx.global_var_map.contains(name) || zulctx.local_var_map.contains(name);
     auto op_cap = make_capture(cur_tok, lexer);
     auto name_cap = Capture(std::move(name), name_loc, name.size());
-    if (op_cap.value == tok_colon) { //선언만
+    if (op_cap.value == tok_colon) { //선언
         advance();
         if (cur_tok != tok_identifier) {
             lexer.log_cur_token("타입이 와야 합니다");
@@ -279,16 +279,24 @@ ASTPtr Parser::parse_local_var(string &name, pair<int, int> name_loc) {
             return nullptr;
         }
         string type = lexer.get_word();
+        auto loc = lexer.get_token_start_loc();
+        advance();
         if (!type_map.contains(type)) {
-            lexer.log_cur_token("존재하지 않는 타입입니다.");
-            advance();
+            System::logger.log_error(loc, type.size(), "존재하지 않는 타입입니다.");
             return nullptr;
         } else if (is_exist) {
             System::logger.log_error(name_loc, name_cap.word_size, "변수가 재정의되었습니다");
             return nullptr;
         }
+        if (cur_tok == tok_assn) { //선언 + 초기화
+            advance();
+            ASTPtr body = parse_expr();
+            if (!body)
+                return nullptr;
+            return make_unique<VariableDeclAST>(std::move(name_cap), type_map[type], std::move(body), zulctx);
+        }
         return make_unique<VariableDeclAST>(std::move(name_cap), type_map[type], zulctx);
-    } else { //대입 연산
+    } else { //자동추론 + 초기화
         advance();
         ASTPtr body = parse_expr();
         if (!body)

@@ -100,6 +100,8 @@ struct VariableDeclAST : public ExprAST {
     int type = -1;
     ASTPtr body = nullptr;
 
+    VariableDeclAST(Capture<std::string> name, int type, ASTPtr body, ZulContext &zulctx);
+
     VariableDeclAST(Capture<std::string> name, int type, ZulContext &zulctx);
 
     VariableDeclAST(Capture<std::string> name, ASTPtr body, ZulContext &zulctx);

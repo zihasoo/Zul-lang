@@ -44,8 +44,7 @@ ZulValue FuncRetAST::code_gen(ZulContext &zulctx) {
             System::logger.log_error(return_type.loc, return_type.word_size,
                                      {"리턴 타입이 일치하지 않습니다. 반환 구문의 타입 \"", type_name_map[body_value.second],
                                       "\" 에서 리턴 타입 \"", type_name_map[return_type.value], "\" 로 캐스팅 할 수 없습니다"});
-        }
-        else if (zulctx.ret_count == 1) {
+        } else if (zulctx.ret_count == 1) {
             zulctx.builder.CreateRet(body_value.first);
         } else {
             zulctx.builder.CreateStore(body_value.first, zulctx.return_var);
@@ -209,6 +208,11 @@ ZulValue VariableAST::code_gen(ZulContext &zulctx) {
     return value;
 }
 
+VariableDeclAST::VariableDeclAST(Capture<std::string> name, int type, ASTPtr body, ZulContext &zulctx) :
+        name(std::move(name)), type(type), body(std::move(body)) {
+    register_var(zulctx);
+}
+
 VariableDeclAST::VariableDeclAST(Capture<std::string> name, int type, ZulContext &zulctx) :
         name(std::move(name)), type(type) {
     register_var(zulctx);
@@ -230,10 +234,19 @@ ZulValue VariableDeclAST::code_gen(ZulContext &zulctx) {
     Value *init_val = nullptr;
     if (body) { //대입식이 있으면 식 먼저 생성
         auto result = body->code_gen(zulctx);
-        if (result.first == nullptr)
+        if (!result.first)
             return nullzul;
+        if (type != -1 && type != result.second && !create_cast(zulctx, result, type)) {
+            System::logger.log_error(name.loc, name.word_size,
+                                     {"대입 연산식의 타입 \"",
+                                      type_name_map[result.second], "\" 에서 변수의 타입 \"",
+                                      type_name_map[type],
+                                      "\" 로 캐스팅 할 수 없습니다"});
+            return nullzul;
+        }
+        if (type == -1) //타입 명시가 안됐을 때만
+            type = result.second; //추론된 타입 적용
         init_val = result.first;
-        type = result.second;
     }
     if (type == -1) {
         System::logger.log_error(name.loc, name.word_size, {"\"", type_name_map[type], "\" 타입의 변수를 생성할 수 없습니다"});
@@ -254,16 +267,16 @@ VariableAssnAST::VariableAssnAST(unique_ptr<VariableAST> target, Capture<Token> 
 
 ZulValue VariableAssnAST::code_gen(ZulContext &zulctx) {
     static unordered_map<Token, Token> assn_op_map = {
-            {tok_mul_assn, tok_mul},
-            {tok_div_assn, tok_div},
-            {tok_mod_assn, tok_mod},
-            {tok_add_assn, tok_add},
-            {tok_sub_assn, tok_sub},
+            {tok_mul_assn,    tok_mul},
+            {tok_div_assn,    tok_div},
+            {tok_mod_assn,    tok_mod},
+            {tok_add_assn,    tok_add},
+            {tok_sub_assn,    tok_sub},
             {tok_lshift_assn, tok_lshift},
             {tok_rshift_assn, tok_rshift},
-            {tok_and_assn, tok_bitand},
-            {tok_or_assn, tok_bitor},
-            {tok_xor_assn, tok_bitxor}
+            {tok_and_assn,    tok_bitand},
+            {tok_or_assn,     tok_bitor},
+            {tok_xor_assn,    tok_bitxor}
     };
     auto target_value = target->code_gen(zulctx);
     auto body_value = body->code_gen(zulctx);

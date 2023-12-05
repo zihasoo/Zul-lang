@@ -91,7 +91,9 @@ private:
             {"글자", 1},
             {"수",  2},
             {"실수", 3},
-            {"글",  4}
+            {"글",  4},
+            {"istream", 5},
+            {"ostream", 6},
     };
 
     static std::unordered_map<Token, int> op_prec_map; //연산자 우선순위 맵
