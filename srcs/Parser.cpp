@@ -6,6 +6,9 @@ using namespace llvm;
 Parser::Parser(const string &source_name) : lexer(source_name) {
     zulctx.module->setSourceFileName(source_name);
     zulctx.module->setTargetTriple(sys::getDefaultTargetTriple());
+
+//    zulctx.global_var_map.emplace("ㄲ", make_pair(new GlobalVariable(
+//            *zulctx.module, llvm_type, false, GlobalVariable::ExternalLinkage, init_val, "ㄲ"), 5));
     advance();
 }
 
@@ -129,19 +132,23 @@ pair<vector<pair<string, int>>, bool> Parser::parse_parameter() {
         if (cur_tok != tok_identifier)
             lexer.log_cur_token("함수의 매개변수가 와야 합니다");
         auto name = lexer.get_word();
-        advance();
-        if (cur_tok != tok_colon)
-            lexer.log_cur_token("콜론이 와야 합니다");
-        advance();
-        if (cur_tok != tok_identifier)
-            lexer.log_cur_token("매개변수에는 타입을 명시해야 합니다.");
-        else {
-            auto type = lexer.get_word();
-            if (type_map.contains(type)) {
-                params.emplace_back(name, type_map[type]);
-                zulctx.local_var_map.emplace(name, make_pair(nullptr, -1));
+        if (type_map.contains(name)) { //타입만 명시
+            params.emplace_back("", type_map[name]);
+        } else {
+            advance();
+            if (cur_tok != tok_colon)
+                lexer.log_cur_token("콜론이 와야 합니다");
+            advance();
+            if (cur_tok == tok_identifier) {
+                auto type = lexer.get_word();
+                if (type_map.contains(type)) {
+                    params.emplace_back(name, type_map[type]);
+                    zulctx.local_var_map.emplace(name, make_pair(nullptr, -1));
+                } else {
+                    lexer.log_cur_token("존재하지 않는 타입입니다.");
+                }
             } else {
-                lexer.log_cur_token("존재하지 않는 타입입니다.");
+                lexer.log_cur_token("매개변수에는 타입을 명시해야 합니다.");
             }
         }
         advance();
@@ -176,6 +183,7 @@ void Parser::parse_func_def(string &func_name, pair<int, int> name_loc, int targ
         func_proto_map.emplace(func_name,
                                FuncProtoAST(func_name, cur_func_ret_type, std::move(params), false, is_var_arg));
         func_proto_map[func_name].code_gen(zulctx);
+        zulctx.local_var_map.clear();
         return;
     }
     if (cur_tok != tok_colon)
@@ -620,7 +628,7 @@ ASTPtr Parser::parse_char() {
     return make_unique<ImmCharAST>(str[0]);
 }
 
-void Parser::create_func(FuncProtoAST &proto, const vector<ASTPtr> &body, std::pair<int,int> name_loc) {
+void Parser::create_func(FuncProtoAST &proto, const vector<ASTPtr> &body, std::pair<int, int> name_loc) {
     auto llvm_func = proto.code_gen(zulctx);
     auto entry_block = BasicBlock::Create(*zulctx.context, "entry", llvm_func);
     zulctx.builder.SetInsertPoint(entry_block);
@@ -655,7 +663,9 @@ void Parser::create_func(FuncProtoAST &proto, const vector<ASTPtr> &body, std::p
         } else if (proto.return_type == -1) {
             zulctx.builder.CreateRetVoid();
         } else {
-            System::logger.log_error(name_loc, proto.name.size(), {"\"",proto.name ,"\" 함수의 리턴 타입은 \"", type_name_map[proto.return_type], "\" 입니다. ㅈㅈ구문이 필요합니다"});
+            System::logger.log_error(name_loc, proto.name.size(),
+                                     {"\"", proto.name, "\" 함수의 리턴 타입은 \"", type_name_map[proto.return_type],
+                                      "\" 입니다. ㅈㅈ구문이 필요합니다"});
         }
     }
     if (zulctx.ret_count > 1) {
