@@ -17,19 +17,19 @@
 
 #define BOOL_TYPEID 0 //기본 타입의 시작 번호
 #define FLOAT_TYPEID 3 //기본 타입의 끝 번호
+#define TYPE_COUNTS 5 //기본 타입의 개수
 #define ENTRY_FN_NAME "main"
 
 extern ZulValue nullzul;
-extern std::map<int, std::string> type_name_map;
 
 template<typename T>
 struct Capture {
     T value;
     std::pair<int, int> loc;
-    int word_size;
+    unsigned word_size;
 
-    Capture(T value, std::pair<int, int> loc, int word_size) :
-            value(std::move(value)), loc(std::move(loc)), word_size(word_size) {}
+    Capture(T value, std::pair<int, int> loc, unsigned word_size) :
+            value(std::move(value)), loc(loc), word_size(word_size) {}
 
     Capture(Capture<T> &&other) noexcept {
         value = std::move(other.value);
@@ -52,11 +52,13 @@ struct Guard {
     }
 };
 
-llvm::Constant *get_const_zero(llvm::Type *llvm_type, int type_num);
+std::string get_type_name(int type_id);
 
-llvm::Constant *get_const_zero(llvm::LLVMContext &context, int type_num);
+llvm::Constant *get_const_zero(llvm::Type *llvm_type, int type_id);
 
-llvm::Type *get_llvm_type(llvm::LLVMContext &context, int type_num);
+llvm::Constant *get_const_zero(llvm::LLVMContext &context, int type_id);
+
+llvm::Type *get_llvm_type(llvm::LLVMContext &context, int type_id);
 
 bool create_cast(ZulContext &zulctx, ZulValue &target, int dest_type_id);
 

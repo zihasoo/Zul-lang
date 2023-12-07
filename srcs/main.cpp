@@ -1,5 +1,4 @@
 #include <iostream>
-#include <cstdarg>
 #include "llvm/ExecutionEngine/Orc/LLJIT.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/TargetSelect.h"
@@ -41,10 +40,7 @@ void run_zul(int argc, char *argv[]) {
 }
 
 int main(int argc, char *argv[]) {
-
-    //run_zul(argc, argv);
-
-
+    run_zul(argc, argv);
 
     return 0;
 }

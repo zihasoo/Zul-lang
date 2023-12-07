@@ -8,20 +8,33 @@
 ZulValue nullzul{nullptr, -1};
 
 std::map<int, std::string> type_name_map = {
-        {-1, "없음"},
         {0,  "논리"},
         {1,  "글자"},
         {2,  "수"},
         {3,  "실수"},
-        {4,  "글"}
+        {4,  "글"},
 };
 
-llvm::Constant *get_const_zero(llvm::LLVMContext &context, int type_num) {
-    return get_const_zero(get_llvm_type(context, type_num), type_num);
+std::string get_type_name(int type_id) {
+    if (type_id < 0)
+        return "없음";
+    int ptr_cnt = type_id / TYPE_COUNTS;
+    int ac_type = type_id % TYPE_COUNTS;
+    std::string ret;
+    ret.reserve(type_name_map[ac_type].size() + ptr_cnt * 2);
+    ret.append(type_name_map[ac_type]);
+    for (int i = 0; i < ptr_cnt; ++i) {
+        ret.append("[]");
+    }
+    return ret;
 }
 
-llvm::Constant *get_const_zero(llvm::Type *llvm_type, int type_num) {
-    switch (type_num) {
+llvm::Constant *get_const_zero(llvm::LLVMContext &context, int type_id) {
+    return get_const_zero(get_llvm_type(context, type_id), type_id);
+}
+
+llvm::Constant *get_const_zero(llvm::Type *llvm_type, int type_id) {
+    switch (type_id) {
         case BOOL_TYPEID:
         case 1:
         case 2:
@@ -35,8 +48,8 @@ llvm::Constant *get_const_zero(llvm::Type *llvm_type, int type_num) {
     }
 }
 
-llvm::Type *get_llvm_type(llvm::LLVMContext &context, int type_num) {
-    switch (type_num) {
+llvm::Type *get_llvm_type(llvm::LLVMContext &context, int type_id) {
+    switch (type_id) {
         case BOOL_TYPEID:
             return llvm::Type::getInt1Ty(context);
         case 1:

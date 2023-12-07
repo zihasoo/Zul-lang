@@ -11,12 +11,13 @@
 class Logger {
 public:
     struct LogInfo {
-        int row, col, word_size;
+        int row, col;
+        unsigned word_size;
         std::string msg;
 
         LogInfo() = default;
 
-        LogInfo(std::pair<int, int> loc, int word_size, std::string &&msg)
+        LogInfo(std::pair<int, int> loc, unsigned word_size, std::string &&msg)
                 : row(loc.first), col(loc.second), word_size(word_size), msg(std::move(msg)) {}
 
         bool operator>(const LogInfo &other) const {
@@ -31,9 +32,9 @@ public:
 
     void set_source_name(const std::string &name);
 
-    void log_error(std::pair<int, int> loc, int word_size, std::string &&msg);
+    void log_error(std::pair<int, int> loc, unsigned word_size, std::string &&msg);
 
-    void log_error(std::pair<int, int> loc, int word_size, const std::initializer_list<std::string_view> &msgs);
+    void log_error(std::pair<int, int> loc, unsigned word_size, const std::initializer_list<std::string_view> &msgs);
 
     void log_error(LogInfo &&log_info);
 
@@ -56,7 +57,7 @@ private:
 
     static std::string indent(std::string_view line, int col);
 
-    static std::string tilde(int count);
+    static std::string tilde(unsigned count);
 };
 
 

@@ -42,8 +42,8 @@ ZulValue FuncRetAST::code_gen(ZulContext &zulctx) {
     } else {
         if (return_type.value != body_value.second && !create_cast(zulctx, body_value, return_type.value)) {
             System::logger.log_error(return_type.loc, return_type.word_size,
-                                     {"리턴 타입이 일치하지 않습니다. 반환 구문의 타입 \"", type_name_map[body_value.second],
-                                      "\" 에서 리턴 타입 \"", type_name_map[return_type.value], "\" 로 캐스팅 할 수 없습니다"});
+                                     {"리턴 타입이 일치하지 않습니다. 반환 구문의 타입 \"", get_type_name(body_value.second),
+                                      "\" 에서 리턴 타입 \"", get_type_name(return_type.value), "\" 로 캐스팅 할 수 없습니다"});
         } else if (zulctx.ret_count == 1) {
             zulctx.builder.CreateRet(body_value.first);
         } else {
@@ -54,8 +54,12 @@ ZulValue FuncRetAST::code_gen(ZulContext &zulctx) {
     return {nullptr, -10};
 }
 
-bool FuncRetAST::is_const(ZulContext &zulctx) {
+bool FuncRetAST::is_const() {
     return false;
+}
+
+int FuncRetAST::get_typeid(ZulContext &zulctx) {
+    return return_type.value;
 }
 
 IfAST::IfAST(CondBodyPair if_pair, std::vector<CondBodyPair> elif_pair_list, std::vector<ASTPtr> else_body) :
@@ -132,8 +136,12 @@ ZulValue IfAST::code_gen(ZulContext &zulctx) {
     return nullzul;
 }
 
-bool IfAST::is_const(ZulContext &zulctx) {
+bool IfAST::is_const() {
     return false;
+}
+
+int IfAST::get_typeid(ZulContext &zulctx) {
+    return -1;
 }
 
 LoopAST::LoopAST(ASTPtr init_body, ASTPtr test_body, ASTPtr update_body, std::vector<ASTPtr> loop_body) :
@@ -188,8 +196,12 @@ ZulValue LoopAST::code_gen(ZulContext &zulctx) {
     return nullzul;
 }
 
-bool LoopAST::is_const(ZulContext &zulctx) {
+bool LoopAST::is_const() {
     return false;
+}
+
+int LoopAST::get_typeid(ZulContext &zulctx) {
+    return -1;
 }
 
 ZulValue ContinueAST::code_gen(ZulContext &zulctx) {
@@ -197,8 +209,12 @@ ZulValue ContinueAST::code_gen(ZulContext &zulctx) {
     return {nullptr, -10};
 }
 
-bool ContinueAST::is_const(ZulContext &zulctx) {
+bool ContinueAST::is_const() {
     return false;
+}
+
+int ContinueAST::get_typeid(ZulContext &zulctx) {
+    return -1;
 }
 
 ZulValue BreakAST::code_gen(ZulContext &zulctx) {
@@ -206,13 +222,17 @@ ZulValue BreakAST::code_gen(ZulContext &zulctx) {
     return {nullptr, -10};
 }
 
-bool BreakAST::is_const(ZulContext &zulctx) {
+bool BreakAST::is_const() {
     return false;
+}
+
+int BreakAST::get_typeid(ZulContext &zulctx) {
+    return -1;
 }
 
 VariableAST::VariableAST(string name) : name(std::move(name)) {}
 
-pair<llvm::Value *, int> VariableAST::get_origin_value(ZulContext &zulctx) const {
+ZulValue VariableAST::get_origin_value(ZulContext &zulctx) {
     if (zulctx.local_var_map.contains(name))
         return zulctx.local_var_map[name];
     if (zulctx.global_var_map.contains(name))
@@ -221,15 +241,19 @@ pair<llvm::Value *, int> VariableAST::get_origin_value(ZulContext &zulctx) const
 }
 
 ZulValue VariableAST::code_gen(ZulContext &zulctx) {
-    pair<llvm::Value *, int> value = get_origin_value(zulctx);
+    auto value = get_origin_value(zulctx);
     if (!value.first)
         return nullzul;
     value.first = zulctx.builder.CreateLoad(get_llvm_type(*zulctx.context, value.second), value.first);
     return value;
 }
 
-bool VariableAST::is_const(ZulContext &zulctx) {
+bool VariableAST::is_const() {
     return false;
+}
+
+int VariableAST::get_typeid(ZulContext &zulctx) {
+    return get_origin_value(zulctx).second;
 }
 
 VariableDeclAST::VariableDeclAST(Capture<std::string> name, int type, ASTPtr body, ZulContext &zulctx) :
@@ -248,7 +272,8 @@ VariableDeclAST::VariableDeclAST(Capture<std::string> name, ASTPtr body, ZulCont
 }
 
 void VariableDeclAST::register_var(ZulContext &zulctx) {
-    zulctx.local_var_map.emplace(name.value, make_pair(nullptr, -1)); //이름만 등록 해놓기
+    int t = ((type == -1) ? body->get_typeid(zulctx) : type);
+    zulctx.local_var_map.emplace(name.value, make_pair(nullptr, t)); //이름만 등록 해놓기
     if (!zulctx.scope_stack.empty()) { //만약 스코프 안에 있다면
         zulctx.scope_stack.top().push_back(name.value); //가장 가까운 스코프에 변수 등록
     }
@@ -263,8 +288,8 @@ ZulValue VariableDeclAST::code_gen(ZulContext &zulctx) {
         if (type != -1 && type != result.second && !create_cast(zulctx, result, type)) {
             System::logger.log_error(name.loc, name.word_size,
                                      {"대입 연산식의 타입 \"",
-                                      type_name_map[result.second], "\" 에서 변수의 타입 \"",
-                                      type_name_map[type],
+                                      get_type_name(result.second), "\" 에서 변수의 타입 \"",
+                                      get_type_name(type),
                                       "\" 로 캐스팅 할 수 없습니다"});
             return nullzul;
         }
@@ -273,7 +298,7 @@ ZulValue VariableDeclAST::code_gen(ZulContext &zulctx) {
         init_val = result.first;
     }
     if (type == -1) {
-        System::logger.log_error(name.loc, name.word_size, {"\"", type_name_map[type], "\" 타입의 변수를 생성할 수 없습니다"});
+        System::logger.log_error(name.loc, name.word_size, {"\"", get_type_name(type), "\" 타입의 변수를 생성할 수 없습니다"});
         return nullzul;
     }
     auto func = zulctx.builder.GetInsertBlock()->getParent();
@@ -286,11 +311,15 @@ ZulValue VariableDeclAST::code_gen(ZulContext &zulctx) {
     return {alloca_val, type};
 }
 
-bool VariableDeclAST::is_const(ZulContext &zulctx) {
+bool VariableDeclAST::is_const() {
     return false;
 }
 
-VariableAssnAST::VariableAssnAST(unique_ptr<VariableAST> target, Capture<Token> op, ASTPtr body) :
+int VariableDeclAST::get_typeid(ZulContext &zulctx) {
+    return -1;
+}
+
+VariableAssnAST::VariableAssnAST(unique_ptr<LvalueAST> target, Capture<Token> op, ASTPtr body) :
         target(std::move(target)), op(std::move(op)), body(std::move(body)) {}
 
 ZulValue VariableAssnAST::code_gen(ZulContext &zulctx) {
@@ -313,8 +342,8 @@ ZulValue VariableAssnAST::code_gen(ZulContext &zulctx) {
         target_value.second > FLOAT_TYPEID || body_value.second > FLOAT_TYPEID) {
         System::logger.log_error(op.loc, op.word_size,
                                  {"대입 연산식의 타입 \"",
-                                  type_name_map[target_value.second], "\" 과 변수의 타입 \"",
-                                  type_name_map[body_value.second],
+                                  get_type_name(target_value.second), "\" 과 변수의 타입 \"",
+                                  get_type_name(body_value.second),
                                   "\" 사이에 적절한 연산자 오버로드가 없습니다"});
         return nullzul;
     }
@@ -322,8 +351,8 @@ ZulValue VariableAssnAST::code_gen(ZulContext &zulctx) {
     if (target_value.second != body_value.second && !create_cast(zulctx, body_value, target_value.second)) {
         System::logger.log_error(op.loc, op.word_size,
                                  {"대입 연산식의 타입 \"",
-                                  type_name_map[target_value.second], "\" 에서 변수의 타입 \"",
-                                  type_name_map[body_value.second],
+                                  get_type_name(target_value.second), "\" 에서 변수의 타입 \"",
+                                  get_type_name(body_value.second),
                                   "\" 로 캐스팅 할 수 없습니다"});
         return nullzul;
     }
@@ -343,15 +372,19 @@ ZulValue VariableAssnAST::code_gen(ZulContext &zulctx) {
     return {zulctx.builder.CreateStore(result, target->get_origin_value(zulctx).first), target_value.second};
 }
 
-bool VariableAssnAST::is_const(ZulContext &zulctx) {
+bool VariableAssnAST::is_const() {
     return false;
+}
+
+int VariableAssnAST::get_typeid(ZulContext &zulctx) {
+    return -1;
 }
 
 BinOpAST::BinOpAST(ASTPtr left, ASTPtr right, Capture<Token> op) : left(std::move(left)),
                                                                    right(std::move(right)),
                                                                    op(std::move(op)) {}
 
-ZulValue BinOpAST::short_circuit_code_gen(ZulContext &zulctx) {
+ZulValue BinOpAST::short_circuit_code_gen(ZulContext &zulctx) const {
     auto lhs = left->code_gen(zulctx);
     if (!lhs.first)
         return nullzul;
@@ -397,8 +430,8 @@ ZulValue BinOpAST::code_gen(ZulContext &zulctx) {
         return nullzul;
     if (lhs.second > FLOAT_TYPEID || rhs.second > FLOAT_TYPEID) { //연산자 오버로딩 지원 하게되면 변경
         System::logger.log_error(op.loc, op.word_size, {"좌측항의 타입 \"",
-                                                        type_name_map[lhs.second], "\" 과 우측항의 타입 \"",
-                                                        type_name_map[rhs.second],
+                                                        get_type_name(lhs.second), "\" 과 우측항의 타입 \"",
+                                                        get_type_name(rhs.second),
                                                         "\" 사이에 적절한 연산자 오버로드가 없습니다"});
         return nullzul;
     }
@@ -408,8 +441,8 @@ ZulValue BinOpAST::code_gen(ZulContext &zulctx) {
         if (!create_cast(zulctx, rhs, lhs.second)) {
             System::logger.log_error(op.loc, op.word_size,
                                      {"우측항의 타입 \"",
-                                      type_name_map[rhs.second], "\" 에서 좌측항의 타입 \"",
-                                      type_name_map[lhs.second],
+                                      get_type_name(rhs.second), "\" 에서 좌측항의 타입 \"",
+                                      get_type_name(lhs.second),
                                       "\" 로 캐스팅 할 수 없습니다"});
             return nullzul;
         }
@@ -418,8 +451,8 @@ ZulValue BinOpAST::code_gen(ZulContext &zulctx) {
         if (!create_cast(zulctx, lhs, rhs.second)) {
             System::logger.log_error(op.loc, op.word_size,
                                      {"좌측항의 타입 \"",
-                                      type_name_map[lhs.second], "\" 에서 우측항의 타입 \"",
-                                      type_name_map[rhs.second],
+                                      get_type_name(lhs.second), "\" 에서 우측항의 타입 \"",
+                                      get_type_name(rhs.second),
                                       "\" 로 캐스팅 할 수 없습니다"});
             return nullzul;
         }
@@ -434,8 +467,18 @@ ZulValue BinOpAST::code_gen(ZulContext &zulctx) {
     return {ret, calc_type};
 }
 
-bool BinOpAST::is_const(ZulContext &zulctx) {
-    return left->is_const(zulctx) && right->is_const(zulctx);
+bool BinOpAST::is_const() {
+    return left->is_const() && right->is_const() && op.value != tok_and && op.value != tok_or;
+}
+
+int BinOpAST::get_typeid(ZulContext &zulctx) {
+    if (op.value == tok_and || op.value == tok_or)
+        return 0;
+    int ltype = left->get_typeid(zulctx);
+    int rtype = right->get_typeid(zulctx);
+    if (ltype > FLOAT_TYPEID || rtype > FLOAT_TYPEID || ltype < BOOL_TYPEID || rtype < BOOL_TYPEID)
+        return -1;
+    return max(ltype, rtype);
 }
 
 UnaryOpAST::UnaryOpAST(ASTPtr body, Capture<Token> op) : body(std::move(body)), op(std::move(op)) {}
@@ -459,9 +502,9 @@ ZulValue UnaryOpAST::code_gen(ZulContext &zulctx) {
                 return {zulctx.builder.CreateFSub(zero, body_value.first), body_value.second};
         case tok_not:
             if (body_value.second < FLOAT_TYPEID)
-                return {zulctx.builder.CreateICmpEQ(zero, body_value.first), body_value.second};
+                return {zulctx.builder.CreateICmpEQ(zero, body_value.first), 0};
             else
-                return {zulctx.builder.CreateFCmpOEQ(zero, body_value.first), body_value.second};
+                return {zulctx.builder.CreateFCmpOEQ(zero, body_value.first), 0};
         case tok_bitnot:
             if (body_value.second == FLOAT_TYPEID) {
                 System::logger.log_error(op.loc, op.word_size, "단항 '~' 연산자를 적용할 수 없습니다");
@@ -475,8 +518,49 @@ ZulValue UnaryOpAST::code_gen(ZulContext &zulctx) {
     return body_value;
 }
 
-bool UnaryOpAST::is_const(ZulContext &zulctx) {
-    return body->is_const(zulctx);
+bool UnaryOpAST::is_const() {
+    return body->is_const();
+}
+
+int UnaryOpAST::get_typeid(ZulContext &zulctx) {
+    if (op.value == tok_not)
+        return 0;
+    return body->get_typeid(zulctx);
+}
+
+SubscriptAST::SubscriptAST(std::unique_ptr<VariableAST> target, Capture<ASTPtr> index) : target(std::move(target)),
+                                                                                         index(std::move(index)) {}
+
+ZulValue SubscriptAST::get_origin_value(ZulContext &zulctx) {
+    auto target_val = target->get_origin_value(zulctx);
+    auto index_val = index.value->code_gen(zulctx);
+    if (!target_val.first || !index_val.first)
+        return nullzul;
+    if (target_val.second < TYPE_COUNTS) {
+        System::logger.log_error(index.loc, index.word_size, "'[]' 연산자를 사용할 수 없습니다. 배열이 아닙니다.");
+        return nullzul;
+    }
+    if (index_val.second != 2) {
+        System::logger.log_error(index.loc, index.word_size, "배열의 인덱스는 정수여야 합니다");
+        return nullzul;
+    }
+    auto elm_type = get_llvm_type(*zulctx.context, target_val.second - TYPE_COUNTS);
+    auto elm_ptr = zulctx.builder.CreateGEP(elm_type, target_val.first, {index_val.first});
+    return {elm_ptr, target_val.second - TYPE_COUNTS};
+}
+
+ZulValue SubscriptAST::code_gen(ZulContext &zulctx) {
+    auto elm_ptr = get_origin_value(zulctx);
+    auto loaded = zulctx.builder.CreateLoad(elm_ptr.first->getType(), elm_ptr.first);
+    return {loaded, elm_ptr.second};
+}
+
+bool SubscriptAST::is_const() {
+    return false;
+}
+
+int SubscriptAST::get_typeid(ZulContext &zulctx) {
+    return target->get_typeid(zulctx) - TYPE_COUNTS;
 }
 
 FuncCallAST::FuncCallAST(FuncProtoAST &proto, vector<Capture<ASTPtr>> args)
@@ -495,8 +579,8 @@ ZulValue FuncCallAST::code_gen(ZulContext &zulctx) {
             !create_cast(zulctx, arg, proto.params[i].second)) {
             //arg와 param의 타입이 맞지 않으면 캐스팅 시도
             System::logger.log_error(args[i].loc, args[i].word_size, {
-                    "인자의 타입 \"", type_name_map[arg.second], "\" 에서 매개변수의 타입 \"",
-                    type_name_map[proto.params[i].second], "\" 로 캐스팅 할 수 없습니다"});
+                    "인자의 타입 \"", get_type_name(arg.second), "\" 에서 매개변수의 타입 \"",
+                    get_type_name(proto.params[i].second), "\" 로 캐스팅 할 수 없습니다"});
             has_error = true;
         }
         arg_values.push_back(arg.first);
@@ -506,8 +590,12 @@ ZulValue FuncCallAST::code_gen(ZulContext &zulctx) {
     return {zulctx.builder.CreateCall(target_func, arg_values), proto.return_type};
 }
 
-bool FuncCallAST::is_const(ZulContext &zulctx) {
+bool FuncCallAST::is_const() {
     return false;
+}
+
+int FuncCallAST::get_typeid(ZulContext &zulctx) {
+    return proto.return_type;
 }
 
 ImmBoolAST::ImmBoolAST(bool val) : val(val) {}
@@ -516,8 +604,12 @@ ZulValue ImmBoolAST::code_gen(ZulContext &zulctx) {
     return {llvm::ConstantInt::get(*zulctx.context, llvm::APInt(1, val)), BOOL_TYPEID};
 }
 
-bool ImmBoolAST::is_const(ZulContext &zulctx) {
+bool ImmBoolAST::is_const() {
     return true;
+}
+
+int ImmBoolAST::get_typeid(ZulContext &zulctx) {
+    return BOOL_TYPEID;
 }
 
 ImmCharAST::ImmCharAST(char val) : val(val) {}
@@ -526,8 +618,12 @@ ZulValue ImmCharAST::code_gen(ZulContext &zulctx) {
     return {llvm::ConstantInt::get(*zulctx.context, llvm::APInt(8, val)), BOOL_TYPEID + 1};
 }
 
-bool ImmCharAST::is_const(ZulContext &zulctx) {
+bool ImmCharAST::is_const() {
     return true;
+}
+
+int ImmCharAST::get_typeid(ZulContext &zulctx) {
+    return BOOL_TYPEID + 1;
 }
 
 ImmIntAST::ImmIntAST(long long int val) : val(val) {}
@@ -536,8 +632,12 @@ ZulValue ImmIntAST::code_gen(ZulContext &zulctx) {
     return {llvm::ConstantInt::get(*zulctx.context, llvm::APInt(64, val, true)), FLOAT_TYPEID - 1};
 }
 
-bool ImmIntAST::is_const(ZulContext &zulctx) {
+bool ImmIntAST::is_const() {
     return true;
+}
+
+int ImmIntAST::get_typeid(ZulContext &zulctx) {
+    return FLOAT_TYPEID - 1;
 }
 
 ImmRealAST::ImmRealAST(double val) : val(val) {}
@@ -546,8 +646,12 @@ ZulValue ImmRealAST::code_gen(ZulContext &zulctx) {
     return {llvm::ConstantFP::get(*zulctx.context, llvm::APFloat(val)), FLOAT_TYPEID};
 }
 
-bool ImmRealAST::is_const(ZulContext &zulctx) {
+bool ImmRealAST::is_const() {
     return true;
+}
+
+int ImmRealAST::get_typeid(ZulContext &zulctx) {
+    return FLOAT_TYPEID;
 }
 
 ImmStrAST::ImmStrAST(string val) : val(std::move(val)) {}
@@ -556,6 +660,30 @@ ZulValue ImmStrAST::code_gen(ZulContext &zulctx) {
     return {zulctx.builder.CreateGlobalStringPtr(val), 4};
 }
 
-bool ImmStrAST::is_const(ZulContext &zulctx) {
+bool ImmStrAST::is_const() {
     return true;
+}
+
+int ImmStrAST::get_typeid(ZulContext &zulctx) {
+    return 4;
+}
+
+ImmArrAST::ImmArrAST(std::vector<ASTPtr> arr) : arr(std::move(arr)) {}
+
+ZulValue ImmArrAST::code_gen(ZulContext &zulctx) {
+    return nullzul;
+}
+
+bool ImmArrAST::is_const() {
+    for (auto &ast: arr) {
+        if (!ast->is_const())
+            return false;
+    }
+    return true;
+}
+
+int ImmArrAST::get_typeid(ZulContext &zulctx) {
+    if (arr.empty())
+        return -1;
+    return arr[0]->get_typeid(zulctx) + 5;
 }

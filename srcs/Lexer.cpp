@@ -65,18 +65,9 @@ Token Lexer::get_token() {
     static bool is_line_start = false;
 
     last_word.clear();
-    token_start_loc = cur_loc;
-    if (last_char == '\n') {
-        is_line_start = true;
-        System::logger.register_line(cur_loc.first, std::move(cur_line));
-        cur_line.reserve(80);
-        cur_loc.first++;
-        cur_loc.second = 0;
-        last_word.push_back(last_char);
-        advance();
-        return tok_newline;
-    }
+
     if (is_line_start) {
+        token_start_loc = cur_loc;
         while (last_char == ' ') {
             last_word.push_back(last_char);
             advance();
@@ -91,11 +82,22 @@ Token Lexer::get_token() {
         }
     }
 
-    last_word.clear();
     while (last_char != '\n' && isspace(last_char))
         advance();
 
     token_start_loc = cur_loc;
+
+    if (last_char == '\n') {
+        is_line_start = true;
+        System::logger.register_line(cur_loc.first, std::move(cur_line));
+        cur_line.reserve(80);
+        cur_loc.first++;
+        cur_loc.second = 0;
+        last_word.push_back(last_char);
+        advance();
+        return tok_newline;
+    }
+
     if (iskor(last_char) || last_char == '_') {
         while (iskornum(last_char) || last_char == '_' || last_char == '?') {
             last_word.append(raw_last_char);

@@ -16,15 +16,15 @@ Logger::~Logger() {
     flush();
 }
 
-void Logger::log_error(pair<int, int> loc, int word_size, string &&msg) {
+void Logger::log_error(pair<int, int> loc, unsigned word_size, string &&msg) {
     buffer.emplace(loc, word_size, std::move(msg));
     error_flag = true;
 }
 
-void Logger::log_error(pair<int, int> loc, int word_size, const std::initializer_list<std::string_view> &msgs) {
+void Logger::log_error(pair<int, int> loc, unsigned word_size, const std::initializer_list<std::string_view> &msgs) {
     //매모리의 반복 재할당을 막기 위해 initializer_list로 받고 한 번에 할당
     string str;
-    int size = 0;
+    unsigned size = 0;
     for (const auto &x: msgs) {
         size += x.size();
     }
@@ -66,9 +66,9 @@ string Logger::indent(string_view line, int col) {
     return ret;
 }
 
-string Logger::tilde(int count) {
+string Logger::tilde(unsigned count) {
     string ret;
-    count = std::max(0, count);
+    count = std::max(0u, count);
     ret.assign(count, '~');
     return ret;
 }

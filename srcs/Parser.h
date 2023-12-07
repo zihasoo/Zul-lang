@@ -46,11 +46,13 @@ private:
 
     std::pair<std::vector<std::pair<std::string, int>>, bool> parse_parameter();
 
+    std::pair<std::vector<ASTPtr>, int> parse_block_body(int target_level);
+
     std::pair<ASTPtr, int> parse_line(int start_level, int target_level);
 
     ASTPtr parse_expr_start();
 
-    ASTPtr parse_local_var(std::string &name, std::pair<int, int> name_loc);
+    ASTPtr parse_local_var(std::unique_ptr<LvalueAST> lvalue, Capture<std::string> name_cap);
 
     ASTPtr parse_expr();
 
@@ -68,15 +70,19 @@ private:
 
     ASTPtr parse_identifier(std::string &name, std::pair<int, int> name_loc);
 
+    ASTPtr parse_subscript();
+
+    std::pair<int,long long> parse_type();
+
     ASTPtr parse_unary_op();
+
+    std::vector<ASTPtr> parse_literal_arr();
 
     ASTPtr parse_par();
 
     ASTPtr parse_str();
 
     ASTPtr parse_char();
-
-    std::pair<std::vector<ASTPtr>, int> parse_block_body(int target_level);
 
     void create_func(FuncProtoAST &proto, const std::vector<ASTPtr>& body, std::pair<int,int> name_loc);
 
