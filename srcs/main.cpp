@@ -13,13 +13,13 @@ using namespace std;
 //    puts(x);
 //}
 
-int main(int argc, char *argv[]) {
+void run_zul(int argc, char *argv[]) {
     System::parse_arg(argc, argv);
     Parser parser{System::source_name};
     parser.parse();
 
     if (System::logger.has_error())
-        return 0;
+        return ;
 
     llvm::InitLLVM X(argc, argv);
 
@@ -38,6 +38,13 @@ int main(int argc, char *argv[]) {
     auto zul_main_addr = ExitOnErr(J->lookup("main"));
     long long (*zul_main)() = zul_main_addr.toPtr<long long()>();
     zul_main();
+}
+
+int main(int argc, char *argv[]) {
+
+    //run_zul(argc, argv);
+
+
 
     return 0;
 }

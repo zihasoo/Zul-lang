@@ -30,6 +30,8 @@ struct ExprAST {
     virtual ~ExprAST() = default;
 
     virtual ZulValue code_gen(ZulContext &zulctx) = 0;
+
+    virtual bool is_const(ZulContext &zulctx) = 0;
 };
 
 struct FuncProtoAST {
@@ -54,6 +56,8 @@ struct FuncRetAST : public ExprAST {
     FuncRetAST(ASTPtr body, Capture<int> return_type);
 
     ZulValue code_gen(ZulContext &zulctx) override;
+
+    bool is_const(ZulContext &zulctx) override;
 };
 
 struct IfAST : public ExprAST {
@@ -64,6 +68,8 @@ struct IfAST : public ExprAST {
     IfAST(CondBodyPair if_pair, std::vector<CondBodyPair> elif_pair_list, std::vector<ASTPtr> else_body);
 
     ZulValue code_gen(ZulContext &zulctx) override;
+
+    bool is_const(ZulContext &zulctx) override;
 };
 
 struct LoopAST : public ExprAST {
@@ -75,14 +81,20 @@ struct LoopAST : public ExprAST {
     LoopAST(ASTPtr init_body, ASTPtr test_body, ASTPtr update_body, std::vector<ASTPtr> loop_body);
 
     ZulValue code_gen(ZulContext &zulctx) override;
+
+    bool is_const(ZulContext &zulctx) override;
 };
 
 struct ContinueAST : public ExprAST {
     ZulValue code_gen(ZulContext &zulctx) override;
+
+    bool is_const(ZulContext &zulctx) override;
 };
 
 struct BreakAST : public ExprAST {
     ZulValue code_gen(ZulContext &zulctx) override;
+
+    bool is_const(ZulContext &zulctx) override;
 };
 
 struct VariableAST : public ExprAST {
@@ -93,6 +105,8 @@ struct VariableAST : public ExprAST {
     std::pair<llvm::Value *, int> get_origin_value(ZulContext &zulctx) const;
 
     ZulValue code_gen(ZulContext &zulctx) override;
+
+    bool is_const(ZulContext &zulctx) override;
 };
 
 struct VariableDeclAST : public ExprAST {
@@ -109,6 +123,8 @@ struct VariableDeclAST : public ExprAST {
     void register_var(ZulContext &zulctx);
 
     ZulValue code_gen(ZulContext &zulctx) override;
+
+    bool is_const(ZulContext &zulctx) override;
 };
 
 struct VariableAssnAST : public ExprAST {
@@ -119,6 +135,8 @@ struct VariableAssnAST : public ExprAST {
     VariableAssnAST(std::unique_ptr<VariableAST> target, Capture<Token> op, ASTPtr body);
 
     ZulValue code_gen(ZulContext &zulctx) override;
+
+    bool is_const(ZulContext &zulctx) override;
 };
 
 struct BinOpAST : public ExprAST {
@@ -130,6 +148,8 @@ struct BinOpAST : public ExprAST {
     ZulValue short_circuit_code_gen(ZulContext &zulctx);
 
     ZulValue code_gen(ZulContext &zulctx) override;
+
+    bool is_const(ZulContext &zulctx) override;
 };
 
 struct UnaryOpAST : public ExprAST {
@@ -139,6 +159,8 @@ struct UnaryOpAST : public ExprAST {
     UnaryOpAST(ASTPtr body, Capture<Token> op);
 
     ZulValue code_gen(ZulContext &zulctx) override;
+
+    bool is_const(ZulContext &zulctx) override;
 };
 
 struct FuncCallAST : public ExprAST {
@@ -148,6 +170,8 @@ struct FuncCallAST : public ExprAST {
     FuncCallAST(FuncProtoAST &proto, std::vector<Capture<ASTPtr>> args);
 
     ZulValue code_gen(ZulContext &zulctx) override;
+
+    bool is_const(ZulContext &zulctx) override;
 };
 
 struct ImmBoolAST : public ExprAST {
@@ -156,6 +180,8 @@ struct ImmBoolAST : public ExprAST {
     explicit ImmBoolAST(bool val);
 
     ZulValue code_gen(ZulContext &zulctx) override;
+
+    bool is_const(ZulContext &zulctx) override;
 };
 
 struct ImmCharAST : public ExprAST {
@@ -164,6 +190,8 @@ struct ImmCharAST : public ExprAST {
     explicit ImmCharAST(char val);
 
     ZulValue code_gen(ZulContext &zulctx) override;
+
+    bool is_const(ZulContext &zulctx) override;
 };
 
 
@@ -173,6 +201,8 @@ struct ImmIntAST : public ExprAST {
     explicit ImmIntAST(long long val);
 
     ZulValue code_gen(ZulContext &zulctx) override;
+
+    bool is_const(ZulContext &zulctx) override;
 };
 
 struct ImmRealAST : public ExprAST {
@@ -181,6 +211,8 @@ struct ImmRealAST : public ExprAST {
     explicit ImmRealAST(double val);
 
     ZulValue code_gen(ZulContext &zulctx) override;
+
+    bool is_const(ZulContext &zulctx) override;
 };
 
 struct ImmStrAST : public ExprAST {
@@ -189,6 +221,8 @@ struct ImmStrAST : public ExprAST {
     explicit ImmStrAST(std::string val);
 
     ZulValue code_gen(ZulContext &zulctx) override;
+
+    bool is_const(ZulContext &zulctx) override;
 };
 
 #endif //ZULLANG_AST_H

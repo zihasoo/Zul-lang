@@ -6,9 +6,6 @@ using namespace llvm;
 Parser::Parser(const string &source_name) : lexer(source_name) {
     zulctx.module->setSourceFileName(source_name);
     zulctx.module->setTargetTriple(sys::getDefaultTargetTriple());
-
-//    zulctx.global_var_map.emplace("ㄲ", make_pair(new GlobalVariable(
-//            *zulctx.module, llvm_type, false, GlobalVariable::ExternalLinkage, init_val, "ㄲ"), 5));
     advance();
 }
 
@@ -103,7 +100,6 @@ void Parser::parse_global_var() {
             lexer.log_cur_token("존재하지 않는 타입입니다");
             advance();
         }
-
     } else if (cur_tok == tok_assn) { //선언과 초기화
         lexer.log_cur_token("아직 전역변수 초기화가 지원되지 않습니다");
         while (cur_tok != tok_newline && cur_tok != tok_eof)
@@ -304,22 +300,22 @@ ASTPtr Parser::parse_local_var(string &name, pair<int, int> name_loc) {
             return make_unique<VariableDeclAST>(std::move(name_cap), type_map[type], std::move(body), zulctx);
         }
         return make_unique<VariableDeclAST>(std::move(name_cap), type_map[type], zulctx);
-    } else { //자동추론 + 초기화
-        advance();
-        ASTPtr body = parse_expr();
-        if (!body)
-            return nullptr;
-        if (!is_exist) {
-            if (op_cap.value == tok_assn) {
-                return make_unique<VariableDeclAST>(std::move(name_cap), std::move(body), zulctx);
-            } else {
-                System::logger.log_error(name_loc, name_cap.word_size, {"\"", name_cap.value, "\" 는 존재하지 않는 변수입니다"});
-                return nullptr;
-            }
-        }
-        return make_unique<VariableAssnAST>(make_unique<VariableAST>(std::move(name_cap.value)), std::move(op_cap),
-                                            std::move(body));
     }
+    //자동추론 + 초기화
+    advance();
+    ASTPtr body = parse_expr();
+    if (!body)
+        return nullptr;
+    if (!is_exist) {
+        if (op_cap.value == tok_assn) {
+            return make_unique<VariableDeclAST>(std::move(name_cap), std::move(body), zulctx);
+        } else {
+            System::logger.log_error(name_loc, name_cap.word_size, {"\"", name_cap.value, "\" 는 존재하지 않는 변수입니다"});
+            return nullptr;
+        }
+    }
+    return make_unique<VariableAssnAST>(make_unique<VariableAST>(std::move(name_cap.value)), std::move(op_cap),
+                                        std::move(body));
 }
 
 ASTPtr Parser::parse_expr() {

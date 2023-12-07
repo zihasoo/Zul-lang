@@ -54,6 +54,10 @@ ZulValue FuncRetAST::code_gen(ZulContext &zulctx) {
     return {nullptr, -10};
 }
 
+bool FuncRetAST::is_const(ZulContext &zulctx) {
+    return false;
+}
+
 IfAST::IfAST(CondBodyPair if_pair, std::vector<CondBodyPair> elif_pair_list, std::vector<ASTPtr> else_body) :
         if_pair(std::move(if_pair)), elif_pair_list(std::move(elif_pair_list)), else_body(std::move(else_body)) {}
 
@@ -128,6 +132,10 @@ ZulValue IfAST::code_gen(ZulContext &zulctx) {
     return nullzul;
 }
 
+bool IfAST::is_const(ZulContext &zulctx) {
+    return false;
+}
+
 LoopAST::LoopAST(ASTPtr init_body, ASTPtr test_body, ASTPtr update_body, std::vector<ASTPtr> loop_body) :
         init_body(std::move(init_body)), test_body(std::move(test_body)), update_body(std::move(update_body)),
         loop_body(std::move(loop_body)) {}
@@ -180,14 +188,26 @@ ZulValue LoopAST::code_gen(ZulContext &zulctx) {
     return nullzul;
 }
 
+bool LoopAST::is_const(ZulContext &zulctx) {
+    return false;
+}
+
 ZulValue ContinueAST::code_gen(ZulContext &zulctx) {
     zulctx.builder.CreateBr(zulctx.loop_update_stack.top());
     return {nullptr, -10};
 }
 
+bool ContinueAST::is_const(ZulContext &zulctx) {
+    return false;
+}
+
 ZulValue BreakAST::code_gen(ZulContext &zulctx) {
     zulctx.builder.CreateBr(zulctx.loop_end_stack.top());
     return {nullptr, -10};
+}
+
+bool BreakAST::is_const(ZulContext &zulctx) {
+    return false;
 }
 
 VariableAST::VariableAST(string name) : name(std::move(name)) {}
@@ -206,6 +226,10 @@ ZulValue VariableAST::code_gen(ZulContext &zulctx) {
         return nullzul;
     value.first = zulctx.builder.CreateLoad(get_llvm_type(*zulctx.context, value.second), value.first);
     return value;
+}
+
+bool VariableAST::is_const(ZulContext &zulctx) {
+    return false;
 }
 
 VariableDeclAST::VariableDeclAST(Capture<std::string> name, int type, ASTPtr body, ZulContext &zulctx) :
@@ -262,6 +286,10 @@ ZulValue VariableDeclAST::code_gen(ZulContext &zulctx) {
     return {alloca_val, type};
 }
 
+bool VariableDeclAST::is_const(ZulContext &zulctx) {
+    return false;
+}
+
 VariableAssnAST::VariableAssnAST(unique_ptr<VariableAST> target, Capture<Token> op, ASTPtr body) :
         target(std::move(target)), op(std::move(op)), body(std::move(body)) {}
 
@@ -313,6 +341,10 @@ ZulValue VariableAssnAST::code_gen(ZulContext &zulctx) {
             return nullzul;
     }
     return {zulctx.builder.CreateStore(result, target->get_origin_value(zulctx).first), target_value.second};
+}
+
+bool VariableAssnAST::is_const(ZulContext &zulctx) {
+    return false;
 }
 
 BinOpAST::BinOpAST(ASTPtr left, ASTPtr right, Capture<Token> op) : left(std::move(left)),
@@ -402,6 +434,10 @@ ZulValue BinOpAST::code_gen(ZulContext &zulctx) {
     return {ret, calc_type};
 }
 
+bool BinOpAST::is_const(ZulContext &zulctx) {
+    return left->is_const(zulctx) && right->is_const(zulctx);
+}
+
 UnaryOpAST::UnaryOpAST(ASTPtr body, Capture<Token> op) : body(std::move(body)), op(std::move(op)) {}
 
 ZulValue UnaryOpAST::code_gen(ZulContext &zulctx) {
@@ -439,6 +475,10 @@ ZulValue UnaryOpAST::code_gen(ZulContext &zulctx) {
     return body_value;
 }
 
+bool UnaryOpAST::is_const(ZulContext &zulctx) {
+    return body->is_const(zulctx);
+}
+
 FuncCallAST::FuncCallAST(FuncProtoAST &proto, vector<Capture<ASTPtr>> args)
         : proto(proto), args(std::move(args)) {}
 
@@ -466,10 +506,18 @@ ZulValue FuncCallAST::code_gen(ZulContext &zulctx) {
     return {zulctx.builder.CreateCall(target_func, arg_values), proto.return_type};
 }
 
+bool FuncCallAST::is_const(ZulContext &zulctx) {
+    return false;
+}
+
 ImmBoolAST::ImmBoolAST(bool val) : val(val) {}
 
 ZulValue ImmBoolAST::code_gen(ZulContext &zulctx) {
     return {llvm::ConstantInt::get(*zulctx.context, llvm::APInt(1, val)), BOOL_TYPEID};
+}
+
+bool ImmBoolAST::is_const(ZulContext &zulctx) {
+    return true;
 }
 
 ImmCharAST::ImmCharAST(char val) : val(val) {}
@@ -478,10 +526,18 @@ ZulValue ImmCharAST::code_gen(ZulContext &zulctx) {
     return {llvm::ConstantInt::get(*zulctx.context, llvm::APInt(8, val)), BOOL_TYPEID + 1};
 }
 
+bool ImmCharAST::is_const(ZulContext &zulctx) {
+    return true;
+}
+
 ImmIntAST::ImmIntAST(long long int val) : val(val) {}
 
 ZulValue ImmIntAST::code_gen(ZulContext &zulctx) {
     return {llvm::ConstantInt::get(*zulctx.context, llvm::APInt(64, val, true)), FLOAT_TYPEID - 1};
+}
+
+bool ImmIntAST::is_const(ZulContext &zulctx) {
+    return true;
 }
 
 ImmRealAST::ImmRealAST(double val) : val(val) {}
@@ -490,8 +546,16 @@ ZulValue ImmRealAST::code_gen(ZulContext &zulctx) {
     return {llvm::ConstantFP::get(*zulctx.context, llvm::APFloat(val)), FLOAT_TYPEID};
 }
 
+bool ImmRealAST::is_const(ZulContext &zulctx) {
+    return true;
+}
+
 ImmStrAST::ImmStrAST(string val) : val(std::move(val)) {}
 
 ZulValue ImmStrAST::code_gen(ZulContext &zulctx) {
     return {zulctx.builder.CreateGlobalStringPtr(val), 4};
+}
+
+bool ImmStrAST::is_const(ZulContext &zulctx) {
+    return true;
 }
