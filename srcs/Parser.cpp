@@ -444,6 +444,12 @@ ASTPtr Parser::parse_primary() {
             return parse_str();
         case tok_squotes:
             return parse_char();
+        case tok_true:
+            advance();
+            return make_unique<ImmBoolAST>(true);
+        case tok_false:
+            advance();
+            return make_unique<ImmBoolAST>(false);
         default:
             return nullptr;
     }

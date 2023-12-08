@@ -81,8 +81,11 @@ Token Lexer::get_token() {
             return tok_indent;
         }
     }
-
-    while (last_char != '\n' && isspace(last_char))
+    while (last_char != '\n' &&
+           #ifdef DEBUG
+           -1 <= last_char && last_char <= 255 &&
+           #endif
+           isspace(last_char))
         advance();
 
     token_start_loc = cur_loc;
@@ -124,9 +127,9 @@ Token Lexer::get_token() {
                 if (isreal)
                     wrong = true;
                 isreal = true;
-            }
-            else
+            } else {
                 digit = true;
+            }
             last_word.append(raw_last_char);
             advance();
         }
@@ -201,6 +204,8 @@ unordered_map<string_view, Token> Lexer::token_map =
          {"ㅈㅈ",  tok_gg},
          {"ㅅㄱ",  tok_sg},
          {"ㅌㅌ",  tok_tt},
+         {"참",  tok_true},
+         {"거짓",  tok_false},
 
          {",",   tok_comma},
          {":",   tok_colon},
@@ -215,7 +220,7 @@ unordered_map<string_view, Token> Lexer::token_map =
          {"\"",  tok_dquotes},
          {"'",   tok_squotes},
          {"//",  tok_anno},
-         {"...",  tok_va_arg},
+         {"...", tok_va_arg},
 
          {"+",   tok_add},
          {"-",   tok_sub},

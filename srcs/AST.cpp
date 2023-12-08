@@ -551,7 +551,7 @@ ZulValue SubscriptAST::get_origin_value(ZulContext &zulctx) {
 
 ZulValue SubscriptAST::code_gen(ZulContext &zulctx) {
     auto elm_ptr = get_origin_value(zulctx);
-    auto loaded = zulctx.builder.CreateLoad(elm_ptr.first->getType(), elm_ptr.first);
+    auto loaded = zulctx.builder.CreateLoad(get_llvm_type(*zulctx.context, elm_ptr.second), elm_ptr.first);
     return {loaded, elm_ptr.second};
 }
 

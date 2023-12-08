@@ -18,6 +18,8 @@ enum Token {
     tok_gg, // ㅈㅈ
     tok_sg, //ㅅㄱ
     tok_tt, //ㅌㅌ
+    tok_true, //참
+    tok_false, //거짓
 
     // primary
     tok_identifier,
