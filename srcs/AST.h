@@ -31,13 +31,17 @@ struct ExprAST {
 
     virtual ZulValue code_gen(ZulContext &zulctx) = 0;
 
-    virtual bool is_const() = 0;
+    virtual bool is_const();
 
-    virtual int get_typeid(ZulContext &zulctx) = 0;
+    virtual bool is_lvalue();
+
+    virtual int get_typeid(ZulContext &zulctx);
 };
 
 struct LvalueAST : ExprAST {
     virtual ZulValue get_origin_value(ZulContext &zulctx) = 0;
+
+    bool is_lvalue() override;
 };
 
 struct FuncProtoAST {
@@ -63,8 +67,6 @@ struct FuncRetAST : public ExprAST {
 
     ZulValue code_gen(ZulContext &zulctx) override;
 
-    bool is_const() override;
-
     int get_typeid(ZulContext &zulctx) override;
 };
 
@@ -76,10 +78,6 @@ struct IfAST : public ExprAST {
     IfAST(CondBodyPair if_pair, std::vector<CondBodyPair> elif_pair_list, std::vector<ASTPtr> else_body);
 
     ZulValue code_gen(ZulContext &zulctx) override;
-
-    bool is_const() override;
-
-    int get_typeid(ZulContext &zulctx) override;
 };
 
 struct LoopAST : public ExprAST {
@@ -91,26 +89,14 @@ struct LoopAST : public ExprAST {
     LoopAST(ASTPtr init_body, ASTPtr test_body, ASTPtr update_body, std::vector<ASTPtr> loop_body);
 
     ZulValue code_gen(ZulContext &zulctx) override;
-
-    bool is_const() override;
-
-    int get_typeid(ZulContext &zulctx) override;
 };
 
 struct ContinueAST : public ExprAST {
     ZulValue code_gen(ZulContext &zulctx) override;
-
-    bool is_const() override;
-
-    int get_typeid(ZulContext &zulctx) override;
 };
 
 struct BreakAST : public ExprAST {
     ZulValue code_gen(ZulContext &zulctx) override;
-
-    bool is_const() override;
-
-    int get_typeid(ZulContext &zulctx) override;
 };
 
 struct VariableAST : public LvalueAST {
@@ -121,8 +107,6 @@ struct VariableAST : public LvalueAST {
     ZulValue get_origin_value(ZulContext &zulctx) override;
 
     ZulValue code_gen(ZulContext &zulctx) override;
-
-    bool is_const() override;
 
     int get_typeid(ZulContext &zulctx) override;
 };
@@ -141,10 +125,6 @@ struct VariableDeclAST : public ExprAST {
     void register_var(ZulContext &zulctx);
 
     ZulValue code_gen(ZulContext &zulctx) override;
-
-    bool is_const() override;
-
-    int get_typeid(ZulContext &zulctx) override;
 };
 
 struct VariableAssnAST : public ExprAST {
@@ -155,10 +135,6 @@ struct VariableAssnAST : public ExprAST {
     VariableAssnAST(std::unique_ptr<LvalueAST> target, Capture<Token> op, ASTPtr body);
 
     ZulValue code_gen(ZulContext &zulctx) override;
-
-    bool is_const() override;
-
-    int get_typeid(ZulContext &zulctx) override;
 };
 
 struct BinOpAST : public ExprAST {
@@ -199,8 +175,6 @@ struct SubscriptAST : public LvalueAST {
 
     ZulValue code_gen(ZulContext &zulctx) override;
 
-    bool is_const() override;
-
     int get_typeid(ZulContext &zulctx) override;
 };
 
@@ -208,11 +182,17 @@ struct FuncCallAST : public ExprAST {
     FuncProtoAST &proto;
     std::vector<Capture<ASTPtr>> args;
 
+    static std::unordered_map<int, std::string_view> format_str_map;
+
     FuncCallAST(FuncProtoAST &proto, std::vector<Capture<ASTPtr>> args);
 
-    ZulValue code_gen(ZulContext &zulctx) override;
+    std::string_view get_format_str(int type_id);
 
-    bool is_const() override;
+    ZulValue handle_std_in(ZulContext &zulctx);
+
+    ZulValue handle_std_out(ZulContext &zulctx);
+
+    ZulValue code_gen(ZulContext &zulctx) override;
 
     int get_typeid(ZulContext &zulctx) override;
 };

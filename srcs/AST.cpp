@@ -3,6 +3,22 @@
 using namespace std;
 using namespace llvm;
 
+bool ExprAST::is_const() {
+    return false;
+}
+
+bool ExprAST::is_lvalue() {
+    return false;
+}
+
+int ExprAST::get_typeid(ZulContext &zulctx) {
+    return -1;
+}
+
+bool LvalueAST::is_lvalue() {
+    return true;
+}
+
 FuncProtoAST::FuncProtoAST(string name, int return_type, vector<pair<string, int>> params, bool has_body,
                            bool is_var_arg) :
         name(std::move(name)), return_type(return_type), params(std::move(params)), has_body(has_body),
@@ -15,12 +31,7 @@ llvm::Function *FuncProtoAST::code_gen(ZulContext &zulctx) {
         param_types.emplace_back(get_llvm_type(*zulctx.context, param.second));
     }
     auto func_type = llvm::FunctionType::get(get_llvm_type(*zulctx.context, return_type), param_types, is_var_arg);
-    auto llvm_func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, name, *zulctx.module);
-    int i = 0;
-    for (auto &arg: llvm_func->args()) {
-        arg.setName(params[i++].first);
-    }
-    return llvm_func;
+    return llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, name, *zulctx.module);
 }
 
 FuncRetAST::FuncRetAST(ASTPtr body, Capture<int> return_type) :
@@ -52,10 +63,6 @@ ZulValue FuncRetAST::code_gen(ZulContext &zulctx) {
         }
     }
     return {nullptr, -10};
-}
-
-bool FuncRetAST::is_const() {
-    return false;
 }
 
 int FuncRetAST::get_typeid(ZulContext &zulctx) {
@@ -136,14 +143,6 @@ ZulValue IfAST::code_gen(ZulContext &zulctx) {
     return nullzul;
 }
 
-bool IfAST::is_const() {
-    return false;
-}
-
-int IfAST::get_typeid(ZulContext &zulctx) {
-    return -1;
-}
-
 LoopAST::LoopAST(ASTPtr init_body, ASTPtr test_body, ASTPtr update_body, std::vector<ASTPtr> loop_body) :
         init_body(std::move(init_body)), test_body(std::move(test_body)), update_body(std::move(update_body)),
         loop_body(std::move(loop_body)) {}
@@ -196,38 +195,14 @@ ZulValue LoopAST::code_gen(ZulContext &zulctx) {
     return nullzul;
 }
 
-bool LoopAST::is_const() {
-    return false;
-}
-
-int LoopAST::get_typeid(ZulContext &zulctx) {
-    return -1;
-}
-
 ZulValue ContinueAST::code_gen(ZulContext &zulctx) {
     zulctx.builder.CreateBr(zulctx.loop_update_stack.top());
     return {nullptr, -10};
 }
 
-bool ContinueAST::is_const() {
-    return false;
-}
-
-int ContinueAST::get_typeid(ZulContext &zulctx) {
-    return -1;
-}
-
 ZulValue BreakAST::code_gen(ZulContext &zulctx) {
     zulctx.builder.CreateBr(zulctx.loop_end_stack.top());
     return {nullptr, -10};
-}
-
-bool BreakAST::is_const() {
-    return false;
-}
-
-int BreakAST::get_typeid(ZulContext &zulctx) {
-    return -1;
 }
 
 VariableAST::VariableAST(string name) : name(std::move(name)) {}
@@ -244,12 +219,9 @@ ZulValue VariableAST::code_gen(ZulContext &zulctx) {
     auto value = get_origin_value(zulctx);
     if (!value.first)
         return nullzul;
-    value.first = zulctx.builder.CreateLoad(get_llvm_type(*zulctx.context, value.second), value.first);
+    if (value.second < TYPE_COUNTS)
+        value.first = zulctx.builder.CreateLoad(get_llvm_type(*zulctx.context, value.second), value.first);
     return value;
-}
-
-bool VariableAST::is_const() {
-    return false;
 }
 
 int VariableAST::get_typeid(ZulContext &zulctx) {
@@ -311,14 +283,6 @@ ZulValue VariableDeclAST::code_gen(ZulContext &zulctx) {
     return {alloca_val, type};
 }
 
-bool VariableDeclAST::is_const() {
-    return false;
-}
-
-int VariableDeclAST::get_typeid(ZulContext &zulctx) {
-    return -1;
-}
-
 VariableAssnAST::VariableAssnAST(unique_ptr<LvalueAST> target, Capture<Token> op, ASTPtr body) :
         target(std::move(target)), op(std::move(op)), body(std::move(body)) {}
 
@@ -370,14 +334,6 @@ ZulValue VariableAssnAST::code_gen(ZulContext &zulctx) {
             return nullzul;
     }
     return {zulctx.builder.CreateStore(result, target->get_origin_value(zulctx).first), target_value.second};
-}
-
-bool VariableAssnAST::is_const() {
-    return false;
-}
-
-int VariableAssnAST::get_typeid(ZulContext &zulctx) {
-    return -1;
 }
 
 BinOpAST::BinOpAST(ASTPtr left, ASTPtr right, Capture<Token> op) : left(std::move(left)),
@@ -555,10 +511,6 @@ ZulValue SubscriptAST::code_gen(ZulContext &zulctx) {
     return {loaded, elm_ptr.second};
 }
 
-bool SubscriptAST::is_const() {
-    return false;
-}
-
 int SubscriptAST::get_typeid(ZulContext &zulctx) {
     return target->get_typeid(zulctx) - TYPE_COUNTS;
 }
@@ -566,7 +518,63 @@ int SubscriptAST::get_typeid(ZulContext &zulctx) {
 FuncCallAST::FuncCallAST(FuncProtoAST &proto, vector<Capture<ASTPtr>> args)
         : proto(proto), args(std::move(args)) {}
 
+
+std::string_view FuncCallAST::get_format_str(int type_id) {
+    if (format_str_map.contains(type_id))
+        return format_str_map[type_id];
+    return "%p";
+}
+
+ZulValue FuncCallAST::handle_std_in(ZulContext &zulctx) {
+    vector<llvm::Value *> arg_values;
+    string format_str;
+    auto s = args.size();
+    bool has_error = false;
+    arg_values.reserve(args.size());
+    format_str.reserve(s * 3);
+    for (int i = 0; i < s; i++) {
+        if (!args[i].value->is_lvalue()) {
+            System::logger.log_error(args[i].loc, args[i].word_size, {"\"ㅇㄹ\" 함수에는 좌측값만 올 수 있습니다"});
+            has_error = true;
+        }
+        auto arg = static_cast<LvalueAST*>(args[i].value.get())->get_origin_value(zulctx);
+        if (!arg.first)
+            return nullzul;
+
+        format_str.append(get_format_str(arg.second));
+        if (i < s - 1)
+            format_str.push_back( ' ');
+        arg_values.push_back(arg.first);
+    }
+    arg_values.insert(arg_values.begin(), zulctx.builder.CreateGlobalStringPtr(format_str));
+    if (has_error)
+        return nullzul;
+    return {zulctx.builder.CreateCall(zulctx.module->getFunction("scanf"), arg_values), -1};
+}
+
+ZulValue FuncCallAST::handle_std_out(ZulContext &zulctx) {
+    vector<llvm::Value *> arg_values;
+    string format_str;
+    auto s = args.size();
+    arg_values.reserve(args.size());
+    format_str.reserve(s * 3);
+    for (int i = 0; i < s; i++) {
+        auto arg = args[i].value->code_gen(zulctx);
+        if (!arg.first)
+            return nullzul;
+        format_str.append(get_format_str(arg.second));
+        format_str.push_back((i == s - 1) ? '\n' : ' ');
+        arg_values.push_back(arg.first);
+    }
+    arg_values.insert(arg_values.begin(), zulctx.builder.CreateGlobalStringPtr(format_str));
+    return {zulctx.builder.CreateCall(zulctx.module->getFunction("printf"), arg_values), -1};
+}
+
 ZulValue FuncCallAST::code_gen(ZulContext &zulctx) {
+    if (proto.name == "ㅇㄹ")
+        return handle_std_in(zulctx);
+    if (proto.name == "ㅊㄹ")
+        return handle_std_out(zulctx);
     auto target_func = zulctx.module->getFunction(proto.name);
     vector<llvm::Value *> arg_values;
     bool has_error = false;
@@ -590,13 +598,18 @@ ZulValue FuncCallAST::code_gen(ZulContext &zulctx) {
     return {zulctx.builder.CreateCall(target_func, arg_values), proto.return_type};
 }
 
-bool FuncCallAST::is_const() {
-    return false;
-}
-
 int FuncCallAST::get_typeid(ZulContext &zulctx) {
     return proto.return_type;
 }
+
+unordered_map<int, string_view> FuncCallAST::format_str_map = {
+        {0, "%u"},
+        {1, "%c"},
+        {2, "%lld"},
+        {3, "%lf"},
+        {4, "%s"},
+        {6, "%s"},
+};
 
 ImmBoolAST::ImmBoolAST(bool val) : val(val) {}
 

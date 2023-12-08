@@ -8,11 +8,11 @@
 ZulValue nullzul{nullptr, -1};
 
 std::map<int, std::string> type_name_map = {
-        {0,  "논리"},
-        {1,  "글자"},
-        {2,  "수"},
-        {3,  "실수"},
-        {4,  "글"},
+        {0, "논리"},
+        {1, "글자"},
+        {2, "수"},
+        {3, "실수"},
+        {4, "글"},
 };
 
 std::string get_type_name(int type_id) {
@@ -49,6 +49,9 @@ llvm::Constant *get_const_zero(llvm::Type *llvm_type, int type_id) {
 }
 
 llvm::Type *get_llvm_type(llvm::LLVMContext &context, int type_id) {
+    if (type_id > TYPE_COUNTS) {
+        return llvm::PointerType::getUnqual(context);
+    }
     switch (type_id) {
         case BOOL_TYPEID:
             return llvm::Type::getInt1Ty(context);
@@ -199,7 +202,8 @@ int get_byte_count(int c) {
 }
 
 bool iskor(int c) {
-    return (0x3131 <= c && c <= 0x318E) || (0xAC00 <= c && c <= 0xD7FF);
+    return (0x1100 <= c && c <= 0x11FF) || (0x3130 <= c && c <= 0x318F) || (0xA960 <= c && c <= 0xA97F) ||
+           (0xAC00 <= c && c <= 0xD7AF) || (0xD7B0 <= c && c <= 0xD7FF);
 }
 
 bool isnum(int c) {

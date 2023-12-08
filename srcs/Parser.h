@@ -14,6 +14,9 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Value.h"
 #include "llvm/TargetParser/Host.h"
+#include <llvm/Bitcode/BitcodeReader.h>
+#include <llvm/Support/Error.h>
+#include <llvm/Support/MemoryBuffer.h>
 
 #include "ZulContext.h"
 #include "System.h"
@@ -25,9 +28,7 @@ class Parser {
 public:
     explicit Parser(const std::string &source_name);
 
-    void parse();
-
-    ZulContext& get_zulctx();
+    std::pair<std::unique_ptr<llvm::LLVMContext>, std::unique_ptr<llvm::Module>> parse();
 
 private:
     ZulContext zulctx;
@@ -42,7 +43,7 @@ private:
 
     void parse_global_var();
 
-    void parse_func_def(std::string &func_name, std::pair<int,int> name_loc, int target_level);
+    void parse_func_def(std::string &func_name, std::pair<int, int> name_loc, int target_level);
 
     std::pair<std::vector<std::pair<std::string, int>>, bool> parse_parameter();
 
@@ -68,11 +69,13 @@ private:
 
     ASTPtr parse_identifier();
 
-    ASTPtr parse_identifier(std::string &name, std::pair<int, int> name_loc);
+    ASTPtr parse_func_call(std::string &name, std::pair<int, int> name_loc);
+
+    std::unique_ptr<LvalueAST> parse_lvalue(std::string &name, std::pair<int, int> name_loc, bool check_exist = true);
 
     ASTPtr parse_subscript();
 
-    std::pair<int,long long> parse_type();
+    std::pair<int, long long> parse_type();
 
     ASTPtr parse_unary_op();
 
@@ -84,13 +87,16 @@ private:
 
     ASTPtr parse_char();
 
-    void create_func(FuncProtoAST &proto, const std::vector<ASTPtr>& body, std::pair<int,int> name_loc);
+    void create_func(FuncProtoAST &proto, const std::vector<ASTPtr> &body, std::pair<int, int> name_loc);
 
     void advance();
 
     int get_op_prec();
 
-    std::map<std::string, FuncProtoAST> func_proto_map;
+    std::map<std::string, FuncProtoAST> func_proto_map = {
+            {"ㅇㄹ", FuncProtoAST("ㅇㄹ", -1, {}, false, true)},
+            {"ㅊㄹ", FuncProtoAST("ㅊㄹ", -1, {}, false, true)},
+    };
 
     std::map<std::string, int> type_map = {
             {"논리", 0},

@@ -1,15 +1,8 @@
 
-ㅎㅇ printf(글, ...) 수
-ㅎㅇ puts(글) 수
+a: 수[10]
 
-n = 100
-arr :수[100]
+ㅎㅇ func(arr : 수[]):
+    ㅊㄹ(arr[0])
 
 ㅎㅇ main() 수:
-    a = 참
-    ㄱㄱ i = 0; i < n; i+=1:
-        arr[i] = i + 1
-
-    ㄱㄱ i = 0; i < n; i+=1:
-        ㅇㅈ? arr[i] % 2 == 0:
-            printf("%d ", arr[i])
+    func(a)

@@ -51,7 +51,7 @@ void Lexer::advance() {
         last_char = (input & 0xF) << 12;
         last_char |= (inner_advance() & 0x3F) << 6;
         last_char |= (inner_advance() & 0x3F);
-    } else if ((last_char & 0xF8) == 0xF0) {
+    } else if ((input & 0xF8) == 0xF0) {
         last_char = (input & 0x7) << 18;
         last_char |= (inner_advance() & 0x3F) << 12;
         last_char |= (inner_advance() & 0x3F) << 6;
@@ -76,10 +76,7 @@ Token Lexer::get_token() {
             }
         }
         is_line_start = false;
-        if (0 < last_word.size() && last_word.size() < 4) {
-            log_cur_token("잘못된 들여쓰기입니다");
-            return tok_indent;
-        }
+        last_word.clear();
     }
     while (last_char != '\n' &&
            #ifdef DEBUG
@@ -112,7 +109,11 @@ Token Lexer::get_token() {
         return tok_identifier;
     }
 
-    if (isalpha(last_char) || last_char == '_') {
+    if (
+        #ifdef DEBUG
+        -1 <= last_char && last_char <= 255 &&
+        #endif
+        isalpha(last_char) || last_char == '_') {
         while (isalnum(last_char) || last_char == '_') {
             last_word.append(raw_last_char);
             advance();
@@ -204,7 +205,7 @@ unordered_map<string_view, Token> Lexer::token_map =
          {"ㅈㅈ",  tok_gg},
          {"ㅅㄱ",  tok_sg},
          {"ㅌㅌ",  tok_tt},
-         {"참",  tok_true},
+         {"참",   tok_true},
          {"거짓",  tok_false},
 
          {",",   tok_comma},
