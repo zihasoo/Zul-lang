@@ -113,14 +113,12 @@ struct VariableAST : public LvalueAST {
 
 struct VariableDeclAST : public ExprAST {
     Capture<std::string> name;
-    int type = -1;
-    ASTPtr body = nullptr;
+    int type;
+    ASTPtr body;
 
-    VariableDeclAST(Capture<std::string> name, int type, ASTPtr body, ZulContext &zulctx);
+    VariableDeclAST(Capture<std::string> name, ZulContext &zulctx, int type, ASTPtr body = nullptr);
 
-    VariableDeclAST(Capture<std::string> name, int type, ZulContext &zulctx);
-
-    VariableDeclAST(Capture<std::string> name, ASTPtr body, ZulContext &zulctx);
+    VariableDeclAST(Capture<std::string> name, ZulContext &zulctx, ASTPtr body);
 
     void register_var(ZulContext &zulctx);
 
@@ -250,18 +248,6 @@ struct ImmStrAST : public ExprAST {
     std::string val;
 
     explicit ImmStrAST(std::string val);
-
-    ZulValue code_gen(ZulContext &zulctx) override;
-
-    bool is_const() override;
-
-    int get_typeid(ZulContext &zulctx) override;
-};
-
-struct ImmArrAST : public ExprAST {
-    std::vector<ASTPtr> arr;
-
-    explicit ImmArrAST(std::vector<ASTPtr> val);
 
     ZulValue code_gen(ZulContext &zulctx) override;
 

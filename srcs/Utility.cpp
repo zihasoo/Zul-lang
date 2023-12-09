@@ -5,66 +5,77 @@
 #include "System.h"
 #include "Utility.h"
 
+using std::map;
+using std::string;
+
+using llvm::LLVMContext;
+using llvm::ConstantInt;
+using llvm::ConstantFP;
+using llvm::ConstantPointerNull;
+using llvm::Type;
+using llvm::PointerType;
+using llvm::Value;
+using llvm::Constant;
+
 ZulValue nullzul{nullptr, -1};
 
-std::map<int, std::string> type_name_map = {
-        {0, "논리"},
-        {1, "글자"},
-        {2, "수"},
-        {3, "실수"},
-        {4, "글"},
+map<int, string> type_name_map = {
+        {id_bool,  "논리"},
+        {id_char,  "글자"},
+        {id_int,   "수"},
+        {id_float, "실수"},
 };
 
-std::string get_type_name(int type_id) {
+string get_type_name(int type_id) {
     if (type_id < 0)
         return "없음";
     int ptr_cnt = type_id / TYPE_COUNTS;
-    int ac_type = type_id % TYPE_COUNTS;
-    std::string ret;
-    ret.reserve(type_name_map[ac_type].size() + ptr_cnt * 2);
-    ret.append(type_name_map[ac_type]);
-    for (int i = 0; i < ptr_cnt; ++i) {
+    int type = type_id % TYPE_COUNTS;
+    string ret;
+    ret.reserve(type_name_map[type].size() + ptr_cnt * 2);
+    ret.append(type_name_map[type]);
+    if (ptr_cnt == 1) {
         ret.append("[]");
+    } else if (ptr_cnt > 1){
+        ret.append("*");
     }
     return ret;
 }
 
-llvm::Constant *get_const_zero(llvm::LLVMContext &context, int type_id) {
+Constant *get_const_zero(LLVMContext &context, int type_id) {
     return get_const_zero(get_llvm_type(context, type_id), type_id);
 }
 
-llvm::Constant *get_const_zero(llvm::Type *llvm_type, int type_id) {
+Constant *get_const_zero(Type *llvm_type, int type_id) {
     switch (type_id) {
-        case BOOL_TYPEID:
-        case 1:
-        case 2:
-            return llvm::ConstantInt::get(llvm_type, 0, true);
-        case FLOAT_TYPEID:
-            return llvm::ConstantFP::get(llvm_type, 0);
+        case id_bool:
+        case id_char:
+        case id_int:
+            return ConstantInt::get(llvm_type, 0, true);
+        case id_float:
+            return ConstantFP::get(llvm_type, 0);
         case 4:
-            return llvm::ConstantPointerNull::get(static_cast<llvm::PointerType *>(llvm_type));
+            return ConstantPointerNull::get(static_cast<PointerType *>(llvm_type));
         default:
             return nullptr;
     }
 }
 
-llvm::Type *get_llvm_type(llvm::LLVMContext &context, int type_id) {
+Type *get_llvm_type(LLVMContext &context, int type_id) {
     if (type_id > TYPE_COUNTS) {
-        return llvm::PointerType::getUnqual(context);
+        return PointerType::getUnqual(context);
     }
     switch (type_id) {
-        case BOOL_TYPEID:
-            return llvm::Type::getInt1Ty(context);
-        case 1:
-            return llvm::Type::getInt8Ty(context);
-        case 2:
-            return llvm::Type::getInt64Ty(context);
-        case FLOAT_TYPEID:
-            return llvm::Type::getDoubleTy(context);
-        case 4:
-            return llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(context));
+        case id_bool:
+            return Type::getInt1Ty(context);
+        case id_char:
+            return Type::getInt8Ty(context);
+        case id_int:
+            return Type::getInt64Ty(context);
+        case id_float:
+            return Type::getDoubleTy(context);
         default:
-            return llvm::Type::getVoidTy(context);
+            return Type::getVoidTy(context);
     }
 }
 
@@ -72,20 +83,20 @@ bool create_cast(ZulContext &zulctx, ZulValue &target, int dest_type_id) {
     bool cast = true;
     if (target.second < 0)
         return false;
-    if (dest_type_id == FLOAT_TYPEID) {
-        target.first = zulctx.builder.CreateSIToFP(target.first, llvm::Type::getDoubleTy(*zulctx.context));
-    } else if (dest_type_id == BOOL_TYPEID) {
-        if (target.second == FLOAT_TYPEID) {
+    if (dest_type_id == id_float) {
+        target.first = zulctx.builder.CreateSIToFP(target.first, Type::getDoubleTy(*zulctx.context));
+    } else if (dest_type_id == id_bool) {
+        if (target.second == id_float) {
             target.first = zulctx.builder.CreateFCmpONE(target.first, get_const_zero(*zulctx.context, 0));
         } else {
             target.first = zulctx.builder.CreateICmpNE(target.first, get_const_zero(*zulctx.context, 0));
         }
-    } else if (BOOL_TYPEID < dest_type_id && dest_type_id < FLOAT_TYPEID) {
+    } else if (id_bool < dest_type_id && dest_type_id < id_float) {
         auto dest_type = get_llvm_type(*zulctx.context, dest_type_id);
-        if (target.second == FLOAT_TYPEID) {
+        if (target.second == id_float) {
             target.first = zulctx.builder.CreateFPToSI(target.first, dest_type);
         } else {
-            target.first = zulctx.builder.CreateIntCast(target.first, dest_type, target.second != BOOL_TYPEID);
+            target.first = zulctx.builder.CreateIntCast(target.first, dest_type, target.second != id_bool);
         }
     } else {
         cast = false;
@@ -93,7 +104,7 @@ bool create_cast(ZulContext &zulctx, ZulValue &target, int dest_type_id) {
     return cast;
 }
 
-llvm::Value *create_int_operation(ZulContext &zulctx, llvm::Value *lhs, llvm::Value *rhs, Capture<Token> &op) {
+Value *create_int_operation(ZulContext &zulctx, Value *lhs, Value *rhs, Capture<Token> &op) {
     switch (op.value) {
         case tok_add:
             return zulctx.builder.CreateAdd(lhs, rhs);
@@ -133,7 +144,7 @@ llvm::Value *create_int_operation(ZulContext &zulctx, llvm::Value *lhs, llvm::Va
     }
 }
 
-llvm::Value *create_float_operation(ZulContext &zulctx, llvm::Value *lhs, llvm::Value *rhs, Capture<Token> &op) {
+Value *create_float_operation(ZulContext &zulctx, Value *lhs, Value *rhs, Capture<Token> &op) {
     switch (op.value) {
         case tok_add:
             return zulctx.builder.CreateFAdd(lhs, rhs);
@@ -178,27 +189,15 @@ bool is_cmp(Token op) {
 }
 
 bool to_boolean_expr(ZulContext &zulctx, ZulValue &expr) {
-    if (expr.second == FLOAT_TYPEID) {
-        expr.first = zulctx.builder.CreateFCmpONE(expr.first, llvm::ConstantFP::get(expr.first->getType(), 0));
-    } else if (expr.second != BOOL_TYPEID) {
+    if (expr.second == id_float) {
+        expr.first = zulctx.builder.CreateFCmpONE(expr.first, ConstantFP::get(expr.first->getType(), 0));
+    } else if (expr.second != id_bool) {
         auto zero = get_const_zero(*zulctx.context, expr.second);
         if (zero == nullptr) //bool형으로 캐스팅 불가능한 경우
             return false;
         expr.first = zulctx.builder.CreateICmpNE(expr.first, zero);
     }
     return true;
-}
-
-int get_byte_count(int c) {
-    if ((c & 0x80) == 0)
-        return 1;
-    if ((c & 0xE0) == 0xC0)
-        return 2;
-    if ((c & 0xF0) == 0xE0)
-        return 3;
-    if ((c & 0xF8) == 0xF0)
-        return 4;
-    return -1;
 }
 
 bool iskor(int c) {
@@ -212,129 +211,4 @@ bool isnum(int c) {
 
 bool iskornum(int c) {
     return iskor(c) || isnum(c);
-}
-
-std::string token_to_string(Token token) {
-    switch (token) {
-        case tok_hi:
-            return "tok_hi";
-        case tok_go:
-            return "tok_go";
-        case tok_ij:
-            return "tok_ij";
-        case tok_no:
-            return "tok_no";
-        case tok_nope:
-            return "tok_nope";
-        case tok_gg:
-            return "tok_gg";
-        case tok_sg:
-            return "tok_sg";
-        case tok_tt:
-            return "tok_tt";
-        case tok_identifier:
-            return "tok_identifier";
-        case tok_int:
-            return "tok_int";
-        case tok_real:
-            return "tok_real";
-        case tok_eng:
-            return "tok_eng";
-        case tok_indent:
-            return "tok_indent";
-        case tok_newline:
-            return "tok_newline";
-        case tok_comma:
-            return "tok_comma";
-        case tok_colon:
-            return "tok_colon";
-        case tok_semicolon:
-            return "tok_semicolon";
-        case tok_lpar:
-            return "tok_lpar";
-        case tok_rpar:
-            return "tok_rpar";
-        case tok_rsqbrk:
-            return "tok_rsqbrk";
-        case tok_lsqbrk:
-            return "tok_lsqbrk";
-        case tok_rbrk:
-            return "tok_rbrk";
-        case tok_lbrk:
-            return "tok_lbrk";
-        case tok_dot:
-            return "tok_dot";
-        case tok_dquotes:
-            return "tok_dquotes";
-        case tok_squotes:
-            return "tok_squotes";
-        case tok_anno:
-            return "tok_anno";
-        case tok_add:
-            return "tok_add";
-        case tok_sub:
-            return "tok_sub";
-        case tok_mul:
-            return "tok_mul";
-        case tok_div:
-            return "tok_div";
-        case tok_mod:
-            return "tok_mod";
-        case tok_and:
-            return "tok_and";
-        case tok_or:
-            return "tok_or";
-        case tok_not:
-            return "tok_not";
-        case tok_bitand:
-            return "tok_bitand";
-        case tok_bitor:
-            return "tok_bitor";
-        case tok_bitnot:
-            return "tok_bitnot";
-        case tok_bitxor:
-            return "tok_bitxor";
-        case tok_lshift:
-            return "tok_lshift";
-        case tok_rshift:
-            return "tok_rshift";
-        case tok_assn:
-            return "tok_assn";
-        case tok_mul_assn:
-            return "tok_mul_assn";
-        case tok_div_assn:
-            return "tok_div_assn";
-        case tok_mod_assn:
-            return "tok_mod_assn";
-        case tok_add_assn:
-            return "tok_add_assn";
-        case tok_sub_assn:
-            return "tok_sub_assn";
-        case tok_lshift_assn:
-            return "tok_lshift_assn";
-        case tok_rshift_assn:
-            return "tok_rshift_assn";
-        case tok_and_assn:
-            return "tok_and_assn";
-        case tok_or_assn:
-            return "tok_or_assn";
-        case tok_xor_assn:
-            return "tok_xor_assn";
-        case tok_eq:
-            return "tok_eq";
-        case tok_ineq:
-            return "tok_ineq";
-        case tok_gt:
-            return "tok_gt";
-        case tok_gteq:
-            return "tok_gteq";
-        case tok_lt:
-            return "tok_lt";
-        case tok_lteq:
-            return "tok_lteq";
-        case tok_eof:
-            return "tok_eof";
-        default:
-            return "tok_undefined";
-    }
 }

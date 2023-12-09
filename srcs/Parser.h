@@ -14,9 +14,6 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Value.h"
 #include "llvm/TargetParser/Host.h"
-#include <llvm/Bitcode/BitcodeReader.h>
-#include <llvm/Support/Error.h>
-#include <llvm/Support/MemoryBuffer.h>
 
 #include "ZulContext.h"
 #include "System.h"
@@ -75,11 +72,9 @@ private:
 
     ASTPtr parse_subscript();
 
-    std::pair<int, long long> parse_type();
+    std::pair<int, ASTPtr> parse_type(bool no_arr = false);
 
     ASTPtr parse_unary_op();
-
-    std::vector<ASTPtr> parse_literal_arr();
 
     ASTPtr parse_par();
 
@@ -103,7 +98,6 @@ private:
             {"글자", 1},
             {"수",  2},
             {"실수", 3},
-            {"글",  4},
     };
 
     static std::unordered_map<Token, int> op_prec_map; //연산자 우선순위 맵

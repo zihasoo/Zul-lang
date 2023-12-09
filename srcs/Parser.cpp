@@ -1,11 +1,30 @@
 #include "Parser.h"
 
-using namespace std;
-using namespace llvm;
+using std::string;
+using std::unique_ptr;
+using std::pair;
+using std::vector;
+using std::make_unique;
+using std::make_pair;
+using std::to_string;
+using std::stringstream;
+
+using llvm::Module;
+using llvm::LLVMContext;
+using llvm::BasicBlock;
+using llvm::Type;
+using llvm::Value;
+using llvm::ArrayType;
+using llvm::PointerType;
+using llvm::GlobalVariable;
+using llvm::Constant;
+using llvm::ConstantInt;
+using llvm::ConstantAggregateZero;
+using llvm::sys::getDefaultTargetTriple;
 
 Parser::Parser(const string &source_name) : lexer(source_name) {
     zulctx.module->setSourceFileName(source_name);
-    zulctx.module->setTargetTriple(sys::getDefaultTargetTriple());
+    zulctx.module->setTargetTriple(getDefaultTargetTriple());
     advance();
 }
 
@@ -45,14 +64,14 @@ void Parser::parse_top_level() {
         } else if (cur_tok == tok_hi) {
             advance();
             if (cur_tok != tok_identifier) {
-                lexer.log_cur_token("함수 또는 클래스의 이름이 와야 합니다");
+                lexer.log_unexpected("함수 또는 클래스의 이름이 와야 합니다");
             } else {
                 name = lexer.get_word();
-                name_loc = lexer.get_token_start_loc();
+                name_loc = lexer.get_token_loc();
                 advance();
             }
             if (cur_tok == tok_colon) { //클래스 정의
-                cerr << "클래스 정의입니다.\n";
+                lexer.log_token("아직 클래스 정의가 지원되지 않습니다");
                 advance();
             } else if (cur_tok == tok_lpar) { //함수 정의
                 advance();
@@ -63,11 +82,11 @@ void Parser::parse_top_level() {
                     parse_func_def(name, name_loc, 1);
                 }
             } else {
-                lexer.log_cur_token({"예기치 않은 토큰 \"", lexer.get_word(), "\""});
+                lexer.log_unexpected();
                 advance();
             }
         } else {
-            lexer.log_cur_token({"예기치 않은 토큰 \"", lexer.get_word(), "\""});
+            lexer.log_unexpected();
             advance();
         }
     }
@@ -75,7 +94,7 @@ void Parser::parse_top_level() {
 
 void Parser::parse_global_var() {
     auto var_name = lexer.get_word();
-    auto var_loc = lexer.get_token_start_loc();
+    auto var_loc = lexer.get_token_loc();
     advance();
     if (zulctx.global_var_map.contains(var_name)) {
         System::logger.log_error(var_loc, var_name.size(), "변수가 다시 정의되었습니다.");
@@ -83,7 +102,7 @@ void Parser::parse_global_var() {
     }
     if (cur_tok == tok_colon) { //타입 명시
         advance();
-        auto [type_id, size] = parse_type();
+        auto [type_id, size_expr] = parse_type();
         if (type_id == -1)
             return;
         if (cur_tok == tok_assn) { //선언과 초기화
@@ -108,25 +127,35 @@ void Parser::parse_global_var() {
                                                  GlobalVariable::ExternalLinkage,
                                                  static_cast<Constant *>(init_val.first), var_name);
             zulctx.global_var_map.emplace(var_name, make_pair(global_var, type_id));
-        } else { //선언만
-            auto llvm_type = get_llvm_type(*zulctx.context, type_id);
-            GlobalVariable *global_var;
-            if (size == 0) { //배열이 아님
-                auto init_val = get_const_zero(llvm_type, type_id);
-                //GlobalVariable 소멸자 호출되면 dropAllReferences 때문에 에러남. 어쩔 수 없이 그냥 동적할당 사용.
-                global_var = new GlobalVariable(*zulctx.module, llvm_type, false, GlobalVariable::ExternalLinkage,
-                                                init_val, var_name);
-            } else if (size == -1) { //배열 크기를 명시하지 않음
-                System::logger.log_error(var_loc, var_name.size(), "배열 크기를 명시해야 합니다");
-                return;
-            } else {
-                auto arr_type = ArrayType::get(llvm_type, size);
-                global_var = new GlobalVariable(*zulctx.module, arr_type, false, GlobalVariable::ExternalLinkage,
-                                                ConstantAggregateZero::get(arr_type), var_name);
-                type_id += TYPE_COUNTS;
-            }
-            zulctx.global_var_map.emplace(var_name, make_pair(global_var, type_id));
+            return;
         }
+        //선언만
+        auto llvm_type = get_llvm_type(*zulctx.context, type_id);
+        if (size_expr == nullptr) { //배열이 아닌 경우
+            auto init_val = get_const_zero(llvm_type, type_id);
+            //GlobalVariable 소멸자 호출되면 dropAllReferences 때문에 에러남. 그냥 동적 할당 해야됨
+            auto global_var = new GlobalVariable(*zulctx.module, llvm_type, false, GlobalVariable::ExternalLinkage,
+                                                 init_val, var_name);
+            zulctx.global_var_map.emplace(var_name, make_pair(global_var, type_id));
+            return;
+        }
+        //배열인 경우
+        if (size_expr->is_const()) {
+            auto size_val = size_expr->code_gen(zulctx);
+            if (size_val.second == id_int) {
+                int arr_size = static_cast<ConstantInt *>(size_val.first)->getSExtValue();
+                if (arr_size > 0) {
+                    auto arr_type = ArrayType::get(llvm_type, arr_size);
+                    auto global_var = new GlobalVariable(*zulctx.module, arr_type, false,
+                                                         GlobalVariable::ExternalLinkage,
+                                                         ConstantAggregateZero::get(arr_type), var_name);
+                    zulctx.global_var_map.emplace(var_name, make_pair(global_var, type_id));
+                    return;
+                }
+            }
+        }
+        System::logger.log_error(var_loc, var_name.size(), "배열 크기는 0이 아닌 상수 정수여야 합니다");
+
     } else if (cur_tok == tok_assn) { //타입 추론 및 초기화
         advance();
         auto body = parse_expr();
@@ -137,12 +166,17 @@ void Parser::parse_global_var() {
             return;
         }
         auto init_val = body->code_gen(zulctx);
-        auto global_var = new GlobalVariable(*zulctx.module, init_val.first->getType(), false,
-                                             GlobalVariable::ExternalLinkage,
-                                             static_cast<Constant *>(init_val.first), var_name);
+        GlobalVariable *global_var;
+        if (init_val.second == id_char + TYPE_COUNTS) {
+            global_var = static_cast<GlobalVariable *>(init_val.first);
+        } else {
+            global_var = new GlobalVariable(*zulctx.module, init_val.first->getType(), false,
+                                            GlobalVariable::ExternalLinkage,
+                                            static_cast<Constant *>(init_val.first), var_name);
+        }
         zulctx.global_var_map.emplace(var_name, make_pair(global_var, init_val.second));
     } else {
-        lexer.log_cur_token({"예기치 않은 토큰 \"", lexer.get_word(), "\""});
+        lexer.log_unexpected();
     }
 }
 
@@ -156,35 +190,34 @@ pair<vector<pair<string, int>>, bool> Parser::parse_parameter() {
         if (cur_tok == tok_va_arg) {
             advance();
             if (cur_tok != tok_rpar) {
-                lexer.log_cur_token("가변 인자 뒤에는 다른 인자가 올 수 없습니다");
+                lexer.log_token("가변 인자 뒤에는 다른 인자가 올 수 없습니다");
             }
             advance();
             return {params, true};
         }
         if (cur_tok != tok_identifier)
-            lexer.log_cur_token("함수의 매개변수가 와야 합니다");
+            lexer.log_unexpected("함수의 매개변수가 와야 합니다");
         auto name = lexer.get_word();
         if (type_map.contains(name)) { //타입만 명시
-            auto type = parse_type();
-            params.emplace_back("", (type.second != 0) * TYPE_COUNTS + type.first);
+            auto type = parse_type(true);
+            params.emplace_back("", type.first);
         } else if (zulctx.global_var_map.contains(name)) {
-            lexer.log_cur_token("이미 존재하는 변수명을 함수 매개변수로 사용할 수 없습니다");
+            lexer.log_token("이미 존재하는 변수명을 함수 매개변수로 사용할 수 없습니다");
             while (cur_tok != tok_comma && cur_tok != tok_rpar && cur_tok != tok_eof)
                 advance();
         } else {
             advance();
             if (cur_tok != tok_colon)
-                lexer.log_cur_token("콜론이 와야 합니다");
+                lexer.log_unexpected("콜론이 와야 합니다");
             advance();
             auto type = parse_type();
-            int id = (type.second != 0) * TYPE_COUNTS + type.first;
-            params.emplace_back(name, id);
-            zulctx.local_var_map.emplace(name, make_pair(nullptr, id));
+            params.emplace_back(name, type.first);
+            zulctx.local_var_map.emplace(name, make_pair(nullptr, type.first));
         }
         if (cur_tok == tok_rpar || cur_tok == tok_eof)
             break;
         if (cur_tok != tok_comma) {
-            lexer.log_cur_token("콤마가 와야 합니다");
+            lexer.log_unexpected("콤마가 와야 합니다");
         }
         advance();
     }
@@ -201,11 +234,11 @@ void Parser::parse_func_def(string &func_name, pair<int, int> name_loc, int targ
         if (type_map.contains(type_name)) {
             cur_func_ret_type = type_map[type_name];
         } else {
-            lexer.log_cur_token({"\"", type_name, "\" 는 존재하지 않는 타입입니다."});
+            lexer.log_token({"\"", type_name, "\" 는 존재하지 않는 타입입니다."});
         }
         advance();
     }
-    if (func_name == ENTRY_FN_NAME && cur_func_ret_type != 2) {
+    if (func_name == ENTRY_FN_NAME && cur_func_ret_type != id_int) {
         System::logger.log_error(name_loc, func_name.size(), {ENTRY_FN_NAME, " 함수의 반환 타입은 반드시 \"수\" 여야 합니다"});
     }
     if (cur_tok == tok_newline) { //함수 선언만
@@ -216,17 +249,17 @@ void Parser::parse_func_def(string &func_name, pair<int, int> name_loc, int targ
         return;
     }
     if (cur_tok != tok_colon)
-        lexer.log_cur_token("콜론이 와야 합니다");
+        lexer.log_unexpected("콜론이 와야 합니다");
     advance();
     if (cur_tok != tok_newline)
-        lexer.log_cur_token({"예기치 않은 토큰 \"", lexer.get_word(), "\""});
+        lexer.log_unexpected();
     advance();
     func_proto_map.emplace(func_name, FuncProtoAST(func_name, cur_func_ret_type, std::move(params), true, is_var_arg));
 //---------------------------------함수 몸체 파싱---------------------------------
     auto [func_body, stop_level] = parse_block_body(target_level);
     if (func_body.empty() && !System::logger.has_error()) {
         System::logger.log_error(name_loc, func_name.size(),
-                                 "함수의 몸체가 정의되지 않았습니다\n(함수 선언만 하기 위해선 콜론을 사용하지 않아야 합니다)");
+                                 "함수의 몸체가 정의되지 않았습니다. 함수 선언만 하기 위해선 콜론을 사용하지 않아야 합니다");
         return;
     }
     create_func(func_proto_map[func_name], func_body, name_loc);
@@ -266,7 +299,7 @@ std::pair<ASTPtr, int> Parser::parse_line(int start_level, int target_level) {
         while (cur_tok == tok_indent)
             advance();
         if (cur_tok != tok_newline && cur_tok != tok_eof)
-            lexer.log_cur_token("들여쓰기 깊이가 올바르지 않습니다");
+            lexer.log_token("들여쓰기 깊이가 올바르지 않습니다");
     }
     ASTPtr ret;
     if (cur_tok == tok_go) { //ㄱㄱ문
@@ -281,14 +314,14 @@ std::pair<ASTPtr, int> Parser::parse_line(int start_level, int target_level) {
         ret = make_unique<FuncRetAST>(std::move(body), std::move(cap));
     } else if (cur_tok == tok_tt) { //ㅌㅌ
         if (!zulctx.in_loop) {
-            lexer.log_cur_token("ㅌㅌ문을 사용할 수 없습니다. 루프가 아닙니다");
+            lexer.log_token("ㅌㅌ문을 사용할 수 없습니다. 루프가 아닙니다");
             return {nullptr, -1};
         }
         advance();
         ret = make_unique<ContinueAST>();
     } else if (cur_tok == tok_sg) { //ㅅㄱ
         if (!zulctx.in_loop) {
-            lexer.log_cur_token("ㅅㄱ문을 사용할 수 없습니다. 루프가 아닙니다");
+            lexer.log_token("ㅅㄱ문을 사용할 수 없습니다. 루프가 아닙니다");
             return {nullptr, -1};
         }
         advance();
@@ -297,7 +330,7 @@ std::pair<ASTPtr, int> Parser::parse_line(int start_level, int target_level) {
         ret = parse_expr_start();
     }
     if (cur_tok != tok_newline && cur_tok != tok_eof) {
-        lexer.log_cur_token({"예기치 않은 토큰 \"", lexer.get_word(), "\""});
+        lexer.log_unexpected();
         while (cur_tok != tok_newline && cur_tok != tok_eof)
             advance();
     }
@@ -316,6 +349,10 @@ ASTPtr Parser::parse_expr_start() {
             auto lvalue = parse_lvalue(name_cap.value, name_cap.loc, false);
             if (cur_tok == tok_colon || (tok_assn <= cur_tok && cur_tok <= tok_xor_assn)) {
                 return parse_local_var(std::move(lvalue), std::move(name_cap));
+            } else if (!zulctx.var_exist(name_cap.value)) {
+                System::logger.log_error(name_cap.loc, name_cap.word_size,
+                                         {"\"", name_cap.value, "\" 는 존재하지 않는 변수입니다"});
+                return nullptr;
             }
             left = std::move(lvalue);
         }
@@ -328,49 +365,39 @@ ASTPtr Parser::parse_expr_start() {
 }
 
 ASTPtr Parser::parse_local_var(std::unique_ptr<LvalueAST> lvalue, Capture<std::string> name_cap) {
-    bool is_exist = zulctx.global_var_map.contains(name_cap.value) || zulctx.local_var_map.contains(name_cap.value);
+    bool is_exist = zulctx.var_exist(name_cap.value);
     auto op_cap = make_capture(cur_tok, lexer);
     if (op_cap.value == tok_colon) { //선언
-        advance();
-        if (cur_tok != tok_identifier) {
-            lexer.log_cur_token("타입이 와야 합니다");
-            advance();
-            return nullptr;
-        }
-        string type = lexer.get_word();
-        auto loc = lexer.get_token_start_loc();
-        advance();
-        if (!type_map.contains(type)) {
-            System::logger.log_error(loc, type.size(), "존재하지 않는 타입입니다.");
-            return nullptr;
-        } else if (is_exist) {
+        if (is_exist) {
             System::logger.log_error(name_cap.loc, name_cap.word_size, "변수가 재정의되었습니다");
             return nullptr;
         }
+        advance();
+        auto type = parse_type(true);
         if (cur_tok == tok_assn) { //선언 + 초기화
             advance();
             ASTPtr body = parse_expr();
             if (!body)
                 return nullptr;
-            return make_unique<VariableDeclAST>(std::move(name_cap), type_map[type], std::move(body), zulctx);
+            return make_unique<VariableDeclAST>(std::move(name_cap), zulctx, type.first, std::move(body));
         }
-        return make_unique<VariableDeclAST>(std::move(name_cap), type_map[type], zulctx);
+        return make_unique<VariableDeclAST>(std::move(name_cap), zulctx, type.first);
     }
     //자동추론 + 초기화
     advance();
     ASTPtr body = parse_expr();
-    if (!body)
+    if (!body) {
         return nullptr;
+    }
     if (!is_exist) {
         if (op_cap.value == tok_assn) {
-            return make_unique<VariableDeclAST>(std::move(name_cap), std::move(body), zulctx);
+            return make_unique<VariableDeclAST>(std::move(name_cap), zulctx, std::move(body));
         } else {
             System::logger.log_error(name_cap.loc, name_cap.word_size, {"\"", name_cap.value, "\" 는 존재하지 않는 변수입니다"});
             return nullptr;
         }
     }
-    return make_unique<VariableAssnAST>(std::move(lvalue), std::move(op_cap),
-                                        std::move(body));
+    return make_unique<VariableAssnAST>(std::move(lvalue), std::move(op_cap), std::move(body));
 }
 
 ASTPtr Parser::parse_expr() {
@@ -387,8 +414,8 @@ ASTPtr Parser::parse_bin_op(int prev_prec, ASTPtr left) {
         if (cur_prec < prev_prec) //연산자가 아니면 자연스럽게 리턴함
             return left;
         if (cur_prec == op_prec_map[tok_assn]) {
-            lexer.log_cur_token("하나의 식에는 하나의 대입 연산자만 사용할 수 있습니다");
-            while (cur_tok != tok_newline)
+            lexer.log_token("하나의 식에는 하나의 대입 연산자만 사용할 수 있습니다");
+            while (cur_tok != tok_newline && cur_tok != tok_eof)
                 advance();
             return left;
         }
@@ -451,11 +478,11 @@ pair<ASTPtr, bool> Parser::parse_if_header() {
     bool error = false;
     cond = parse_expr();
     if (!cond) {
-        lexer.log_cur_token("조건식이 필요합니다");
+        lexer.log_unexpected("조건식이 필요합니다");
         error = true;
     }
     if (cur_tok != tok_colon) {
-        lexer.log_cur_token("콜론이 필요합니다");
+        lexer.log_unexpected("콜론이 필요합니다");
         error = true;
     }
     advance();
@@ -473,7 +500,7 @@ std::pair<ASTPtr, int> Parser::parse_if(int target_level) {
     auto [if_body, stop_level] = parse_block_body(target_level);
     zulctx.remove_top_scope_vars();
     if (if_body.empty() && !System::logger.has_error()) {
-        lexer.log_cur_token("ㅇㅈ?문의 몸체가 정의되지 않았습니다");
+        lexer.log_token("ㅇㅈ?문의 몸체가 정의되지 않았습니다");
         error = true;
     }
     if_pair = {std::move(if_cond), std::move(if_body)};
@@ -487,7 +514,7 @@ std::pair<ASTPtr, int> Parser::parse_if(int target_level) {
         stop_level = level;
         error = error || elif_err;
         if (elif_body.empty() && !System::logger.has_error()) {
-            lexer.log_cur_token("ㄴㄴ?문의 몸체가 정의되지 않았습니다");
+            lexer.log_token("ㄴㄴ?문의 몸체가 정의되지 않았습니다");
             error = true;
         }
         elif_pair_list.emplace_back(std::move(elif_cond), std::move(elif_body));
@@ -497,7 +524,7 @@ std::pair<ASTPtr, int> Parser::parse_if(int target_level) {
         advance();
         zulctx.scope_stack.emplace();
         if (cur_tok != tok_colon) {
-            lexer.log_cur_token("콜론이 필요합니다");
+            lexer.log_unexpected("콜론이 필요합니다");
             error = true;
         }
         advance();
@@ -505,7 +532,7 @@ std::pair<ASTPtr, int> Parser::parse_if(int target_level) {
         zulctx.remove_top_scope_vars();
         stop_level = level;
         if (body.empty() && !System::logger.has_error()) {
-            lexer.log_cur_token("ㄴㄴ문의 몸체가 정의되지 않았습니다");
+            lexer.log_token("ㄴㄴ문의 몸체가 정의되지 않았습니다");
             error = true;
         }
         else_body = std::move(body);
@@ -528,7 +555,7 @@ std::pair<ASTPtr, int> Parser::parse_for(int target_level) {
         advance();
         test_for = parse_expr_start();
         if (cur_tok != tok_semicolon) {
-            lexer.log_cur_token("ㄱㄱ문에는 세미콜론이 아예 오지 않거나, 2개가 와야 합니다. 세미콜론이 필요합니다");
+            lexer.log_unexpected("ㄱㄱ문에는 세미콜론이 아예 오지 않거나, 2개가 와야 합니다. 세미콜론이 필요합니다");
         }
         advance();
         update_for = parse_expr_start();
@@ -536,7 +563,7 @@ std::pair<ASTPtr, int> Parser::parse_for(int target_level) {
         test_for = std::move(expr);
     }
     if (cur_tok != tok_colon) {
-        lexer.log_cur_token({"예기치 않은 토큰 \"", lexer.get_word(), "\" 콜론이 와야 합니다"});
+        lexer.log_unexpected("콜론이 와야 합니다");
     }
     advance();
 //---------------------------------for문 몸체 파싱---------------------------------
@@ -545,7 +572,7 @@ std::pair<ASTPtr, int> Parser::parse_for(int target_level) {
     zulctx.in_loop = false;
     zulctx.remove_top_scope_vars();
     if (for_body.empty() && !System::logger.has_error()) {
-        lexer.log_cur_token("ㄱㄱ문의 몸체가 정의되지 않았습니다");
+        lexer.log_token("ㄱㄱ문의 몸체가 정의되지 않았습니다");
         return {nullptr, stop_level};
     }
     return {make_unique<LoopAST>(std::move(init_for), std::move(test_for), std::move(update_for),
@@ -554,7 +581,7 @@ std::pair<ASTPtr, int> Parser::parse_for(int target_level) {
 
 ASTPtr Parser::parse_identifier() {
     auto name = lexer.get_word();
-    auto loc = lexer.get_token_start_loc();
+    auto loc = lexer.get_token_loc();
     advance();
     if (cur_tok == tok_lpar)
         return parse_func_call(name, loc);
@@ -573,33 +600,35 @@ ASTPtr Parser::parse_func_call(string &name, pair<int, int> name_loc) {
             auto &proto = func_proto_map[name];
             auto param_cnt = proto.params.size();
             if (!proto.is_var_arg && param_cnt != args.size()) {
-                lexer.log_cur_token({"인자 개수가 맞지 않습니다. ", "\"", name, "\" 함수의 인자 개수는 ", to_string(param_cnt), "개 입니다."});
+                lexer.log_token({"인자 개수가 맞지 않습니다. ", "\"", name, "\" 함수의 인자 개수는 ", to_string(param_cnt), "개 입니다."});
                 advance();
                 return nullptr;
             }
             advance(); // )
             return make_unique<FuncCallAST>(func_proto_map[name], std::move(args));
         }
-        auto arg_start_loc = lexer.get_token_start_loc();
+        auto arg_start_loc = lexer.get_token_loc();
         auto arg = parse_expr();
         if (!arg)
             return nullptr;
-        args.emplace_back(std::move(arg), arg_start_loc, lexer.get_token_start_loc().second - arg_start_loc.second);
-        if (cur_tok == tok_comma)
+        args.emplace_back(std::move(arg), arg_start_loc, lexer.get_token_loc().second - arg_start_loc.second);
+        if (cur_tok == tok_comma) {
             advance();
-        else if (cur_tok != tok_rpar) {
-            lexer.log_cur_token("콤마가 필요합니다");
+        } else if (cur_tok == tok_eof) {
+            lexer.log_unexpected("괄호가 닫히지 않았습니다");
+        } else if (cur_tok != tok_rpar) {
+            lexer.log_unexpected("콤마가 필요합니다");
         }
     }
 }
 
-std::unique_ptr<LvalueAST> Parser::parse_lvalue(string &name, pair<int, int> name_loc, bool check_exist) {
-    if (check_exist && !zulctx.local_var_map.contains(name) && !zulctx.global_var_map.contains(name)) {
+unique_ptr<LvalueAST> Parser::parse_lvalue(string &name, pair<int, int> name_loc, bool check_exist) {
+    if (check_exist && !zulctx.var_exist(name)) {
         System::logger.log_error(name_loc, name.size(), {"\"", name, "\" 는 존재하지 않는 변수입니다"});
         return nullptr;
     }
     if (cur_tok == tok_lsqbrk) {
-        auto loc = lexer.get_token_start_loc();
+        auto loc = lexer.get_token_loc();
         auto size = lexer.get_word().size();
         auto index = parse_subscript();
         return make_unique<SubscriptAST>(make_unique<VariableAST>(name),
@@ -612,7 +641,7 @@ ASTPtr Parser::parse_subscript() {
     advance(); // [
     auto ret = parse_expr();
     if (cur_tok != tok_rsqbrk) {
-        lexer.log_cur_token("]가 필요합니다");
+        lexer.log_unexpected("대괄호가 닫히지 않았습니다. ]가 필요합니다");
         advance();
         return nullptr;
     }
@@ -620,40 +649,42 @@ ASTPtr Parser::parse_subscript() {
     return ret;
 }
 
-std::pair<int, long long> Parser::parse_type() {
-    pair<int, int> null{-1, -1};
+pair<int, ASTPtr> Parser::parse_type(bool no_arr) {
+    pair<int, ASTPtr> null{-1, nullptr};
     if (cur_tok != tok_identifier) {
-        lexer.log_cur_token({"예기치 않은 토큰 \"", lexer.get_word(), "\"", ". 타입이 와야 합니다"});
+        lexer.log_unexpected("타입 이름이 와야 합니다");
         advance();
         return null;
     }
     auto type_name = lexer.get_word();
     if (!type_map.contains(type_name)) {
-        lexer.log_cur_token("존재하지 않는 타입입니다");
+        lexer.log_unexpected("존재하지 않는 타입입니다");
         advance();
         return null;
     }
     int type_id = type_map[type_name];
     advance();
     if (cur_tok != tok_lsqbrk) {
-        return {type_id, 0};
+        return {type_id, nullptr};
     }
-
-    auto brk_loc = lexer.get_token_start_loc();
+    if (no_arr) {
+        lexer.log_token("배열 타입은 전역 변수만 가능합니다");
+        while (cur_tok == tok_lsqbrk)
+            parse_subscript(); //[]먹기
+        return {type_id, nullptr};
+    }
+    auto brk_loc = lexer.get_token_loc();
     auto brk_body = parse_subscript();
-    if (!brk_body)
-        return {type_id, -1};
-    if (brk_body->is_const()) {
-        auto val = brk_body->code_gen(zulctx);
-        if (val.second == 2) {
-            auto size = static_cast<ConstantInt *>(val.first)->getSExtValue();
-            if (size > 0) {
-                return {type_id, size};
-            }
-        }
+    if (!brk_body) {
+        System::logger.log_error(brk_loc, 1, "배열 크기를 명시해야 합니다");
+        return {type_id, nullptr};
     }
-    System::logger.log_error(brk_loc, 1, "배열 크기는 0이 아닌 상수 정수여야 합니다");
-    return null;
+    if (cur_tok == tok_lsqbrk) {
+        lexer.log_token("다차원 배열은 지원되지 않습니다");
+        while (cur_tok == tok_lsqbrk)
+            parse_subscript(); //[]먹기
+    }
+    return {type_id + TYPE_COUNTS, std::move(brk_body)};
 }
 
 ASTPtr Parser::parse_unary_op() {
@@ -666,31 +697,11 @@ ASTPtr Parser::parse_unary_op() {
     return make_unique<UnaryOpAST>(std::move(body), std::move(op_cap));
 }
 
-vector<ASTPtr> Parser::parse_literal_arr() {
-    advance(); // [
-    vector<ASTPtr> arr;
-    while (true) {
-        if (cur_tok == tok_rsqbrk) {
-            advance();  // ]
-            return arr;
-        }
-        auto elm = parse_expr();
-        if (!elm)
-            return arr;
-        arr.push_back(std::move(elm));
-        if (cur_tok == tok_comma)
-            advance();
-        else if (cur_tok != tok_rsqbrk) {
-            lexer.log_cur_token("콤마가 필요합니다");
-        }
-    }
-}
-
 ASTPtr Parser::parse_par() {
     advance(); // (
     auto ret = parse_expr();
     if (cur_tok != tok_rpar) {
-        lexer.log_cur_token(")가 필요합니다");
+        lexer.log_unexpected("괄호가 닫히지 않았습니다. )가 필요합니다");
         advance();
         return nullptr;
     }
@@ -703,7 +714,7 @@ ASTPtr Parser::parse_str() {
     do {
         advance();
         if (cur_tok == tok_newline || cur_tok == tok_eof) {
-            lexer.log_cur_token("쌍따옴표가 닫히지 않았습니다. \"가 필요합니다");
+            lexer.log_unexpected("쌍따옴표가 닫히지 않았습니다. \"가 필요합니다");
             return nullptr;
         }
     } while (cur_tok != tok_dquotes);
@@ -727,7 +738,7 @@ ASTPtr Parser::parse_char() {
     do {
         advance();
         if (cur_tok == tok_newline || cur_tok == tok_eof) {
-            lexer.log_cur_token("따옴표가 닫히지 않았습니다. \'가 필요합니다");
+            lexer.log_unexpected("따옴표가 닫히지 않았습니다. \'가 필요합니다");
             return nullptr;
         }
     } while (cur_tok != tok_squotes);
@@ -735,10 +746,10 @@ ASTPtr Parser::parse_char() {
     auto str = lexer.get_line_substr(st, ed);
     advance();
     if (str.size() > 1) {
-        lexer.log_cur_token("\"글자\" 자료형은 1바이트입니다. 자료형의 범위를 초과합니다");
+        lexer.log_token("\"글자\" 자료형은 1바이트입니다. 자료형의 범위를 초과합니다");
         return nullptr;
     } else if (str.empty()) {
-        lexer.log_cur_token("빈 글자는 존재할 수 없습니다");
+        lexer.log_token("빈 글자는 존재할 수 없습니다");
         return nullptr;
     }
     return make_unique<ImmCharAST>(str[0]);
@@ -748,17 +759,18 @@ void Parser::create_func(FuncProtoAST &proto, const vector<ASTPtr> &body, std::p
     auto llvm_func = proto.code_gen(zulctx);
     auto entry_block = BasicBlock::Create(*zulctx.context, "entry", llvm_func);
     zulctx.builder.SetInsertPoint(entry_block);
+    llvm::IRBuilder<> entry_builder(entry_block, entry_block->begin());
 
     if (zulctx.ret_count > 1) {
         if (proto.return_type != -1)
-            zulctx.return_var = zulctx.builder.CreateAlloca(get_llvm_type(*zulctx.context, proto.return_type), nullptr,
-                                                            "ret");
+            zulctx.return_var = entry_builder.CreateAlloca(get_llvm_type(*zulctx.context, proto.return_type), nullptr,
+                                                           "ret");
         zulctx.return_block = BasicBlock::Create(*zulctx.context, "func_ret");
     }
 
     int i = 0;
     for (auto &arg: llvm_func->args()) {
-        auto alloca_val = zulctx.builder.CreateAlloca(arg.getType(), nullptr, proto.params[i].first);
+        auto alloca_val = entry_builder.CreateAlloca(arg.getType(), nullptr, proto.params[i].first);
         zulctx.builder.CreateStore(&arg, alloca_val);
         zulctx.local_var_map[proto.params[i].first] = make_pair(alloca_val, proto.params[i].second);
         i++;
@@ -766,7 +778,7 @@ void Parser::create_func(FuncProtoAST &proto, const vector<ASTPtr> &body, std::p
 
     for (auto &ast: body) {
         auto code = ast->code_gen(zulctx).second;
-        if (code == -10)
+        if (code == id_interrupt)
             break;
     }
 
@@ -794,9 +806,9 @@ void Parser::create_func(FuncProtoAST &proto, const vector<ASTPtr> &body, std::p
             zulctx.builder.CreateRet(ret);
         }
     }
-    verifyFunction(*llvm_func);
     zulctx.local_var_map.clear();
     zulctx.ret_count = 0;
+    System::logger.flush();
 }
 
 std::unordered_map<Token, int> Parser::op_prec_map = {

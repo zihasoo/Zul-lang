@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(zulc)
+project(zul)
 
 find_package(LLVM REQUIRED CONFIG)
 
@@ -13,4 +13,4 @@ add_subdirectory(./srcs)
 
 llvm_map_components_to_libnames(llvm_libs support core irreader orcjit x86codegen)
 
-target_link_libraries(zulc ${llvm_libs})
+target_link_libraries(zul ${llvm_libs})

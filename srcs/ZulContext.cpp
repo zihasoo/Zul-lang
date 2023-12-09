@@ -13,3 +13,7 @@ void ZulContext::remove_top_scope_vars() {
     }
     scope_stack.pop();
 }
+
+bool ZulContext::var_exist(const std::string &name) {
+    return global_var_map.contains(name) || local_var_map.contains(name);
+}

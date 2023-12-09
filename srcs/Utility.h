@@ -15,10 +15,16 @@
 #include "ZulContext.h"
 #include "Lexer.h"
 
-#define BOOL_TYPEID 0 //기본 타입의 시작 번호
-#define FLOAT_TYPEID 3 //기본 타입의 끝 번호
-#define TYPE_COUNTS 5 //기본 타입의 개수
+#define TYPE_COUNTS 4 //기본 타입의 개수
 #define ENTRY_FN_NAME "main"
+
+enum TypeID {
+    id_bool,
+    id_char,
+    id_int,
+    id_float,
+    id_interrupt = -10
+};
 
 extern ZulValue nullzul;
 
@@ -40,12 +46,13 @@ struct Capture {
 
 template<typename T>
 Capture<T> make_capture(T value, Lexer &lexer) {
-    return Capture(std::move(value), lexer.get_token_start_loc(), lexer.get_word().size());
+    return Capture(std::move(value), lexer.get_token_loc(), lexer.get_word().size());
 }
 
 struct Guard {
     const std::function<void()> target;
-    explicit Guard (std::function<void()> target) : target(std::move(target)) {}
+
+    explicit Guard(std::function<void()> target) : target(std::move(target)) {}
 
     ~Guard() {
         target();
@@ -69,8 +76,6 @@ llvm::Value *create_float_operation(ZulContext &zulctx, llvm::Value *lhs, llvm::
 bool is_cmp(Token op);
 
 bool to_boolean_expr(ZulContext &zulctx, ZulValue &expr);
-
-int get_byte_count(int c);
 
 bool iskor(int c);
 

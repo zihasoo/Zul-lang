@@ -32,19 +32,15 @@ public:
 
     void set_source_name(const std::string &name);
 
-    void log_error(std::pair<int, int> loc, unsigned word_size, std::string &&msg);
+    void log_error(std::pair<int, int> loc, unsigned word_size, std::string_view msg);
 
     void log_error(std::pair<int, int> loc, unsigned word_size, const std::initializer_list<std::string_view> &msgs);
-
-    void log_error(LogInfo &&log_info);
 
     void register_line(int line_num, std::string &&line);
 
     void flush();
 
-    bool has_error() const;
-
-    static constexpr int max_line_map_size = 50;
+    [[nodiscard]] bool has_error() const;
 
 private:
     std::string source_name;
@@ -55,9 +51,9 @@ private:
 
     bool error_flag;
 
-    static std::string indent(std::string_view line, int col);
+    static int get_byte_count(int c);
 
-    static std::string tilde(unsigned count);
+    static std::string highlight(std::string_view str, int col, unsigned word_size);
 };
 
 

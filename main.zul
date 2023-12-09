@@ -1,0 +1,12 @@
+
+ㅎㅇ clock() 수
+
+arr: 수[10]
+str: 글자[10]
+str1 = "asdf"
+
+ㅎㅇ main() 수:
+    str2 = str1
+    str += 1
+    str1 += 1
+    str2 += 1

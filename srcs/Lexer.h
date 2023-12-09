@@ -25,7 +25,6 @@ enum Token {
     tok_identifier,
     tok_int,
     tok_real,
-    tok_eng,
     tok_indent,
     tok_newline,
 
@@ -91,42 +90,42 @@ class Lexer {
 public:
     explicit Lexer(const std::string& source_name);
 
-    Token get_token(); //현재 입력 스트림에서 토큰 타입(enum) 얻기
+    Token get_token();
 
-    std::string& get_word(); //last_word getter
+    std::string& get_word();
 
-    std::pair<int, int> get_cur_loc(); //cur_loc getter
-
-    std::pair<int, int> get_token_start_loc(); //token_start_loc getter
+    std::pair<int, int> get_token_loc();
 
     int get_line_index();
 
     std::string get_line_substr(int st, int ed);
 
-    void log_cur_token(std::string msg);  //현재 토큰을 기반으로 에러를 로깅함
+    void log_unexpected(std::string_view msg = "");
 
-    void log_cur_token(const std::initializer_list<std::string_view>& msgs); //분할 된 메세지를 받는 오버로드
+    void log_token(std::string_view msg);
+
+    void log_token(const std::initializer_list<std::string_view>& msgs);
 
 private:
-    std::string cur_line; //현재 줄
+    std::string cur_line;
 
     int last_char = ' '; //마지막으로 읽은 글자 (유니코드)
 
-    std::string last_word; //get_token 함수로부터 얻어진 단어 (string)
+    std::string last_word;
 
     std::string raw_last_char; //utf8 한 글자를 그대로 저장하기 위한 버퍼
 
-    std::ifstream source; //입력 파일
+    std::ifstream source;
 
-    std::pair<int, int> cur_loc = {1, 0}; //row, col. 현재 lexer가 가리키고 있는 위치
+    std::pair<int, int> cur_loc = {1, 0};
 
-    std::pair<int, int> token_start_loc = {1, 0}; //마지막으로 읽은 토큰의 시작 위치
+    std::pair<int, int> token_loc = {1, 0}; //마지막으로 읽은 토큰의 시작 위치
 
-    static std::unordered_map<std::string_view, Token> token_map; //토큰 문자열 - Token값 해시맵
+    static std::unordered_map<std::string_view, Token> token_map;
 
-    int inner_advance(); //입력 스트림에서 1바이트를 읽고 저장한 뒤 반환
+    int inner_advance();
 
-    void advance(); //입력 스트림에서 바이트를 적절히 읽어들여 유니코드로 변환 후 last_char에 저장
+    void advance();
 };
 
 #endif //ZULLANG_LEXER_H

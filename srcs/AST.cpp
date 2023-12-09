@@ -1,7 +1,24 @@
 #include "AST.h"
 
-using namespace std;
-using namespace llvm;
+using std::string;
+using std::string_view;
+using std::unique_ptr;
+using std::pair;
+using std::vector;
+using std::unordered_map;
+using std::make_unique;
+using std::make_pair;
+using std::to_string;
+using std::max;
+
+using llvm::LLVMContext;
+using llvm::ConstantInt;
+using llvm::ConstantFP;
+using llvm::ConstantPointerNull;
+using llvm::Type;
+using llvm::PointerType;
+using llvm::Value;
+using llvm::Constant;
 
 bool ExprAST::is_const() {
     return false;
@@ -62,7 +79,7 @@ ZulValue FuncRetAST::code_gen(ZulContext &zulctx) {
             zulctx.builder.CreateBr(zulctx.return_block);
         }
     }
-    return {nullptr, -10};
+    return {nullptr, id_interrupt};
 }
 
 int FuncRetAST::get_typeid(ZulContext &zulctx) {
@@ -86,7 +103,7 @@ ZulValue IfAST::code_gen(ZulContext &zulctx) {
     bool interrupted = false;
     for (auto &ast: if_pair.second) {
         auto code = ast->code_gen(zulctx).second;
-        if (code == -10) {
+        if (code == id_interrupt) {
             interrupted = true;
             break;
         }
@@ -109,7 +126,7 @@ ZulValue IfAST::code_gen(ZulContext &zulctx) {
         interrupted = false;
         for (auto &ast: elif_pair.second) {
             auto code = ast->code_gen(zulctx).second;
-            if (code == -10) {
+            if (code == id_interrupt) {
                 interrupted = true;
                 break;
             }
@@ -130,7 +147,7 @@ ZulValue IfAST::code_gen(ZulContext &zulctx) {
         interrupted = false;
         for (auto &ast: else_body) {
             auto code = ast->code_gen(zulctx).second;
-            if (code == -10) {
+            if (code == id_interrupt) {
                 interrupted = true;
                 break;
             }
@@ -178,7 +195,7 @@ ZulValue LoopAST::code_gen(ZulContext &zulctx) {
     zulctx.builder.SetInsertPoint(start_block);
     for (auto &ast: loop_body) {
         auto code = ast->code_gen(zulctx);
-        if (code.second == -10) {
+        if (code.second == id_interrupt) {
             interrupted = true;
             break;
         }
@@ -197,12 +214,12 @@ ZulValue LoopAST::code_gen(ZulContext &zulctx) {
 
 ZulValue ContinueAST::code_gen(ZulContext &zulctx) {
     zulctx.builder.CreateBr(zulctx.loop_update_stack.top());
-    return {nullptr, -10};
+    return {nullptr, id_interrupt};
 }
 
 ZulValue BreakAST::code_gen(ZulContext &zulctx) {
     zulctx.builder.CreateBr(zulctx.loop_end_stack.top());
-    return {nullptr, -10};
+    return {nullptr, id_interrupt};
 }
 
 VariableAST::VariableAST(string name) : name(std::move(name)) {}
@@ -219,7 +236,7 @@ ZulValue VariableAST::code_gen(ZulContext &zulctx) {
     auto value = get_origin_value(zulctx);
     if (!value.first)
         return nullzul;
-    if (value.second < TYPE_COUNTS)
+    if (value.second < TYPE_COUNTS || value.second >= TYPE_COUNTS * 2)
         value.first = zulctx.builder.CreateLoad(get_llvm_type(*zulctx.context, value.second), value.first);
     return value;
 }
@@ -228,23 +245,18 @@ int VariableAST::get_typeid(ZulContext &zulctx) {
     return get_origin_value(zulctx).second;
 }
 
-VariableDeclAST::VariableDeclAST(Capture<std::string> name, int type, ASTPtr body, ZulContext &zulctx) :
+VariableDeclAST::VariableDeclAST(Capture<std::string> name, ZulContext &zulctx, int type, ASTPtr body) :
         name(std::move(name)), type(type), body(std::move(body)) {
     register_var(zulctx);
 }
 
-VariableDeclAST::VariableDeclAST(Capture<std::string> name, int type, ZulContext &zulctx) :
-        name(std::move(name)), type(type) {
-    register_var(zulctx);
-}
-
-VariableDeclAST::VariableDeclAST(Capture<std::string> name, ASTPtr body, ZulContext &zulctx) :
-        name(std::move(name)), body(std::move(body)) {
+VariableDeclAST::VariableDeclAST(Capture<std::string> name, ZulContext &zulctx, ASTPtr body) :
+        name(std::move(name)), type(-1), body(std::move(body)) {
     register_var(zulctx);
 }
 
 void VariableDeclAST::register_var(ZulContext &zulctx) {
-    int t = ((type == -1) ? body->get_typeid(zulctx) : type);
+    int t = (type == -1 ? body->get_typeid(zulctx) : type);
     zulctx.local_var_map.emplace(name.value, make_pair(nullptr, t)); //이름만 등록 해놓기
     if (!zulctx.scope_stack.empty()) { //만약 스코프 안에 있다면
         zulctx.scope_stack.top().push_back(name.value); //가장 가까운 스코프에 변수 등록
@@ -273,6 +285,8 @@ ZulValue VariableDeclAST::code_gen(ZulContext &zulctx) {
         System::logger.log_error(name.loc, name.word_size, {"\"", get_type_name(type), "\" 타입의 변수를 생성할 수 없습니다"});
         return nullzul;
     }
+    if (TYPE_COUNTS < type && type < TYPE_COUNTS * 2) //배열 타입일 경우 포인터로 변환함
+        type += TYPE_COUNTS;
     auto func = zulctx.builder.GetInsertBlock()->getParent();
     llvm::IRBuilder<> entry_builder(&func->getEntryBlock(), func->getEntryBlock().begin());
     auto alloca_val = entry_builder.CreateAlloca(get_llvm_type(*zulctx.context, type), nullptr, name.value);
@@ -303,12 +317,12 @@ ZulValue VariableAssnAST::code_gen(ZulContext &zulctx) {
     auto body_value = body->code_gen(zulctx);
 
     if (!target_value.first || !body_value.first ||
-        target_value.second > FLOAT_TYPEID || body_value.second > FLOAT_TYPEID) {
+        target_value.second > id_float || body_value.second > id_float) {
         System::logger.log_error(op.loc, op.word_size,
                                  {"대입 연산식의 타입 \"",
-                                  get_type_name(target_value.second), "\" 과 변수의 타입 \"",
+                                  get_type_name(target_value.second), "\" 와 변수의 타입 \"",
                                   get_type_name(body_value.second),
-                                  "\" 사이에 적절한 연산자 오버로드가 없습니다"});
+                                  "\" 는 연산이 불가능합니다"});
         return nullzul;
     }
 
@@ -325,7 +339,7 @@ ZulValue VariableAssnAST::code_gen(ZulContext &zulctx) {
         result = body_value.first;
     } else {
         auto prac_op = Capture(assn_op_map[op.value], op.loc, op.word_size);
-        if (target_value.second < FLOAT_TYPEID) {
+        if (target_value.second < id_float) {
             result = create_int_operation(zulctx, target_value.first, body_value.first, prac_op);
         } else {
             result = create_float_operation(zulctx, target_value.first, body_value.first, prac_op);
@@ -384,11 +398,11 @@ ZulValue BinOpAST::code_gen(ZulContext &zulctx) {
     auto rhs = right->code_gen(zulctx);
     if (!lhs.first || !rhs.first)
         return nullzul;
-    if (lhs.second > FLOAT_TYPEID || rhs.second > FLOAT_TYPEID) { //연산자 오버로딩 지원 하게되면 변경
+    if (lhs.second > id_float || rhs.second > id_float) { //연산자 오버로딩 지원 하게되면 변경
         System::logger.log_error(op.loc, op.word_size, {"좌측항의 타입 \"",
-                                                        get_type_name(lhs.second), "\" 과 우측항의 타입 \"",
+                                                        get_type_name(lhs.second), "\" 와 우측항의 타입 \"",
                                                         get_type_name(rhs.second),
-                                                        "\" 사이에 적절한 연산자 오버로드가 없습니다"});
+                                                        "\" 는 연산이 불가능합니다"});
         return nullzul;
     }
     int calc_type = lhs.second;
@@ -414,12 +428,12 @@ ZulValue BinOpAST::code_gen(ZulContext &zulctx) {
         }
     }
     llvm::Value *ret;
-    if (calc_type < FLOAT_TYPEID) {
+    if (calc_type < id_float) {
         ret = create_int_operation(zulctx, lhs.first, rhs.first, op);
     } else {
         ret = create_float_operation(zulctx, lhs.first, rhs.first, op);
     }
-    calc_type = is_cmp(op.value) ? BOOL_TYPEID : calc_type;
+    calc_type = is_cmp(op.value) ? id_bool : calc_type;
     return {ret, calc_type};
 }
 
@@ -432,7 +446,7 @@ int BinOpAST::get_typeid(ZulContext &zulctx) {
         return 0;
     int ltype = left->get_typeid(zulctx);
     int rtype = right->get_typeid(zulctx);
-    if (ltype > FLOAT_TYPEID || rtype > FLOAT_TYPEID || ltype < BOOL_TYPEID || rtype < BOOL_TYPEID)
+    if (ltype > id_float || rtype > id_float || ltype < id_bool || rtype < id_bool)
         return -1;
     return max(ltype, rtype);
 }
@@ -444,7 +458,7 @@ ZulValue UnaryOpAST::code_gen(ZulContext &zulctx) {
     auto zero = get_const_zero(body_value.first->getType(), body_value.second);
     if (!body_value.first)
         return nullzul;
-    if (body_value.second > FLOAT_TYPEID) {
+    if (body_value.second > id_float) {
         System::logger.log_error(op.loc, op.word_size, "단항 연산자를 적용할 수 없습니다");
         return nullzul;
     }
@@ -452,17 +466,17 @@ ZulValue UnaryOpAST::code_gen(ZulContext &zulctx) {
         case tok_add:
             break;
         case tok_sub:
-            if (body_value.second < FLOAT_TYPEID)
+            if (body_value.second < id_float)
                 return {zulctx.builder.CreateSub(zero, body_value.first), body_value.second};
             else
                 return {zulctx.builder.CreateFSub(zero, body_value.first), body_value.second};
         case tok_not:
-            if (body_value.second < FLOAT_TYPEID)
+            if (body_value.second < id_float)
                 return {zulctx.builder.CreateICmpEQ(zero, body_value.first), 0};
             else
                 return {zulctx.builder.CreateFCmpOEQ(zero, body_value.first), 0};
         case tok_bitnot:
-            if (body_value.second == FLOAT_TYPEID) {
+            if (body_value.second == id_float) {
                 System::logger.log_error(op.loc, op.word_size, "단항 '~' 연산자를 적용할 수 없습니다");
                 return nullzul;
             }
@@ -537,13 +551,13 @@ ZulValue FuncCallAST::handle_std_in(ZulContext &zulctx) {
             System::logger.log_error(args[i].loc, args[i].word_size, {"\"ㅇㄹ\" 함수에는 좌측값만 올 수 있습니다"});
             has_error = true;
         }
-        auto arg = static_cast<LvalueAST*>(args[i].value.get())->get_origin_value(zulctx);
+        auto arg = static_cast<LvalueAST *>(args[i].value.get())->get_origin_value(zulctx);
         if (!arg.first)
             return nullzul;
 
         format_str.append(get_format_str(arg.second));
         if (i < s - 1)
-            format_str.push_back( ' ');
+            format_str.push_back(' ');
         arg_values.push_back(arg.first);
     }
     arg_values.insert(arg_values.begin(), zulctx.builder.CreateGlobalStringPtr(format_str));
@@ -603,18 +617,18 @@ int FuncCallAST::get_typeid(ZulContext &zulctx) {
 }
 
 unordered_map<int, string_view> FuncCallAST::format_str_map = {
-        {0, "%u"},
-        {1, "%c"},
-        {2, "%lld"},
-        {3, "%lf"},
-        {4, "%s"},
-        {6, "%s"},
+        {id_bool,               "%u"},
+        {id_char,               "%c"},
+        {id_int,                "%lld"},
+        {id_float,              "%lf"},
+        {id_char + TYPE_COUNTS, "%s"},
+        {id_char + TYPE_COUNTS * 2, "%s"},
 };
 
 ImmBoolAST::ImmBoolAST(bool val) : val(val) {}
 
 ZulValue ImmBoolAST::code_gen(ZulContext &zulctx) {
-    return {llvm::ConstantInt::get(*zulctx.context, llvm::APInt(1, val)), BOOL_TYPEID};
+    return {llvm::ConstantInt::get(*zulctx.context, llvm::APInt(1, val)), id_bool};
 }
 
 bool ImmBoolAST::is_const() {
@@ -622,13 +636,13 @@ bool ImmBoolAST::is_const() {
 }
 
 int ImmBoolAST::get_typeid(ZulContext &zulctx) {
-    return BOOL_TYPEID;
+    return id_bool;
 }
 
 ImmCharAST::ImmCharAST(char val) : val(val) {}
 
 ZulValue ImmCharAST::code_gen(ZulContext &zulctx) {
-    return {llvm::ConstantInt::get(*zulctx.context, llvm::APInt(8, val)), BOOL_TYPEID + 1};
+    return {llvm::ConstantInt::get(*zulctx.context, llvm::APInt(8, val)), id_char};
 }
 
 bool ImmCharAST::is_const() {
@@ -636,13 +650,13 @@ bool ImmCharAST::is_const() {
 }
 
 int ImmCharAST::get_typeid(ZulContext &zulctx) {
-    return BOOL_TYPEID + 1;
+    return id_char;
 }
 
 ImmIntAST::ImmIntAST(long long int val) : val(val) {}
 
 ZulValue ImmIntAST::code_gen(ZulContext &zulctx) {
-    return {llvm::ConstantInt::get(*zulctx.context, llvm::APInt(64, val, true)), FLOAT_TYPEID - 1};
+    return {llvm::ConstantInt::get(*zulctx.context, llvm::APInt(64, val, true)), id_int};
 }
 
 bool ImmIntAST::is_const() {
@@ -650,13 +664,13 @@ bool ImmIntAST::is_const() {
 }
 
 int ImmIntAST::get_typeid(ZulContext &zulctx) {
-    return FLOAT_TYPEID - 1;
+    return id_int;
 }
 
 ImmRealAST::ImmRealAST(double val) : val(val) {}
 
 ZulValue ImmRealAST::code_gen(ZulContext &zulctx) {
-    return {llvm::ConstantFP::get(*zulctx.context, llvm::APFloat(val)), FLOAT_TYPEID};
+    return {llvm::ConstantFP::get(*zulctx.context, llvm::APFloat(val)), id_float};
 }
 
 bool ImmRealAST::is_const() {
@@ -664,13 +678,13 @@ bool ImmRealAST::is_const() {
 }
 
 int ImmRealAST::get_typeid(ZulContext &zulctx) {
-    return FLOAT_TYPEID;
+    return id_float;
 }
 
 ImmStrAST::ImmStrAST(string val) : val(std::move(val)) {}
 
 ZulValue ImmStrAST::code_gen(ZulContext &zulctx) {
-    return {zulctx.builder.CreateGlobalStringPtr(val), 4};
+    return {zulctx.builder.CreateGlobalString(val, "", 0, zulctx.module.get()), id_char + TYPE_COUNTS};
 }
 
 bool ImmStrAST::is_const() {
@@ -678,25 +692,5 @@ bool ImmStrAST::is_const() {
 }
 
 int ImmStrAST::get_typeid(ZulContext &zulctx) {
-    return 4;
-}
-
-ImmArrAST::ImmArrAST(std::vector<ASTPtr> arr) : arr(std::move(arr)) {}
-
-ZulValue ImmArrAST::code_gen(ZulContext &zulctx) {
-    return nullzul;
-}
-
-bool ImmArrAST::is_const() {
-    for (auto &ast: arr) {
-        if (!ast->is_const())
-            return false;
-    }
-    return true;
-}
-
-int ImmArrAST::get_typeid(ZulContext &zulctx) {
-    if (arr.empty())
-        return -1;
-    return arr[0]->get_typeid(zulctx) + 5;
+    return id_char + TYPE_COUNTS;
 }

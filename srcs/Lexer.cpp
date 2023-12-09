@@ -21,12 +21,21 @@ Lexer::Lexer(const string &source_name) : source(source_name) {
     advance();
 }
 
-void Lexer::log_cur_token(string msg) {
-    System::logger.log_error(token_start_loc, last_word.size(), std::move(msg));
+void Lexer::log_unexpected(string_view msg) {
+    if (last_char == EOF)
+        log_token({"예기치 않은 EOF. ", msg});
+    else if (last_word.empty())
+        log_token({"예기치 않은 줄바꿈. ", msg});
+    else
+        log_token({"예기치 않은 토큰 \"", last_word, "\" ", msg});
 }
 
-void Lexer::log_cur_token(const std::initializer_list<std::string_view> &msgs) {
-    System::logger.log_error(token_start_loc, last_word.size(), msgs);
+void Lexer::log_token(string_view msg) {
+    System::logger.log_error(token_loc, last_word.size(), msg);
+}
+
+void Lexer::log_token(const std::initializer_list<std::string_view> &msgs) {
+    System::logger.log_error(token_loc, last_word.size(), msgs);
 }
 
 int Lexer::inner_advance() {
@@ -67,13 +76,21 @@ Token Lexer::get_token() {
     last_word.clear();
 
     if (is_line_start) {
-        token_start_loc = cur_loc;
+        token_loc = cur_loc;
         while (last_char == ' ') {
             last_word.push_back(last_char);
             advance();
             if (last_word.size() == 4) {
                 return tok_indent;
             }
+        }
+        if (!last_word.empty() && last_word.size() < 4) {
+            log_token("잘못된 들여쓰기입니다");
+            return tok_indent;
+        }
+        if (last_char == '\t') {
+            advance();
+            log_token("반드시 공백 문자 4개로 들여쓰기를 해야 합니다. 탭 문자는 허용되지 않습니다");
         }
         is_line_start = false;
         last_word.clear();
@@ -85,7 +102,7 @@ Token Lexer::get_token() {
            isspace(last_char))
         advance();
 
-    token_start_loc = cur_loc;
+    token_loc = cur_loc;
 
     if (last_char == '\n') {
         is_line_start = true;
@@ -93,7 +110,6 @@ Token Lexer::get_token() {
         cur_line.reserve(80);
         cur_loc.first++;
         cur_loc.second = 0;
-        last_word.push_back(last_char);
         advance();
         return tok_newline;
     }
@@ -138,7 +154,7 @@ Token Lexer::get_token() {
             return tok_va_arg;
         if (wrong) {
             if (digit)
-                log_cur_token("잘못된 실수 표현입니다");
+                log_token("잘못된 실수 표현입니다");
             return tok_undefined;
         }
         return isreal ? tok_real : tok_int;
@@ -160,7 +176,7 @@ Token Lexer::get_token() {
         advance();
         return tok_undefined;
     } else if (last_word == "++" || last_word == "--") {
-        log_cur_token("줄랭에는 '++', '--' 단항 연산자가 존재하지 않습니다");
+        log_token("줄랭에는 '++', '--' 단항 연산자가 존재하지 않습니다");
         advance();
         return tok_undefined;
     }
@@ -180,12 +196,8 @@ string &Lexer::get_word() {
     return last_word;
 }
 
-pair<int, int> Lexer::get_cur_loc() {
-    return cur_loc;
-}
-
-pair<int, int> Lexer::get_token_start_loc() {
-    return token_start_loc;
+pair<int, int> Lexer::get_token_loc() {
+    return token_loc;
 }
 
 int Lexer::get_line_index() {

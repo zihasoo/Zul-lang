@@ -9,15 +9,15 @@ using std::string_view;
 using std::clog;
 
 Logger::Logger() : error_flag(false) {
-    line_map.reserve(max_line_map_size + 5);
+    line_map.reserve(70);
 }
 
 Logger::~Logger() {
     flush();
 }
 
-void Logger::log_error(pair<int, int> loc, unsigned word_size, string &&msg) {
-    buffer.emplace(loc, word_size, std::move(msg));
+void Logger::log_error(pair<int, int> loc, unsigned word_size, string_view msg) {
+    buffer.emplace(loc, word_size, string(msg));
     error_flag = true;
 }
 
@@ -36,40 +36,62 @@ void Logger::log_error(pair<int, int> loc, unsigned word_size, const std::initia
     error_flag = true;
 }
 
-void Logger::log_error(Logger::LogInfo &&log_info) {
-    buffer.push(std::move(log_info));
-    error_flag = true;
-}
-
 void Logger::register_line(int line_num, string &&line) {
     line_map.emplace(line_num, std::move(line));
-    if (line_map.size() > max_line_map_size)
-        flush();
 }
 
-string Logger::indent(string_view line, int col) {
+int Logger::get_byte_count(int c) {
+    if ((c & 0xE0) == 0xC0)
+        return 2;
+    if ((c & 0xF0) == 0xE0)
+        return 3;
+    if ((c & 0xF8) == 0xF0)
+        return 4;
+    return 1;
+}
+
+string Logger::highlight(std::string_view str, int col, unsigned word_size) {
     string ret;
-    int corr = 0;
-    int byte;
-    for (int i = 0; i - corr < col; ++i) {
-        byte = get_byte_count(line[i]);
-        if (byte == 1) {
-            ret.push_back(' ');
+    ret.reserve(str.size());
+    int idx = 0;
+    for (int i = 0; i < col; ++i) {
+        int cnt = get_byte_count(str[idx]);
+        if (cnt == 1) {
+            if (str[idx] == '\t')
+                ret.push_back('\t');
+            else
+                ret.push_back(' ');
         } else {
-            corr += byte - 1;
             ret.push_back('\xE3');
             ret.push_back('\x80');
             ret.push_back('\x80');
-            i += byte - 1;
         }
+        idx += cnt;
     }
-    return ret;
-}
+    ret.push_back('^');
+    if (word_size == 0)
+        return ret;
 
-string Logger::tilde(unsigned count) {
-    string ret;
-    count = std::max(0u, count);
-    ret.assign(count, '~');
+    int c = get_byte_count(str[idx]);
+    if (c > 1)
+        ret.push_back('~');
+    word_size -= c;
+    idx += c;
+    int m_byte = 0;
+    for (int i = 0; i < word_size;) {
+        int cnt = get_byte_count(str[idx]);
+        if (cnt == 1) {
+            ret.push_back('~');
+        } else {
+            m_byte++;
+        }
+        idx += cnt;
+        i += cnt;
+    }
+    m_byte += (m_byte + 1) / 2 + m_byte / 8;
+    for (int i = 0; i < m_byte; ++i) {
+        ret.push_back('~');
+    }
     return ret;
 }
 
@@ -79,8 +101,7 @@ void Logger::flush() {
         clog << source_name << ' ' << log.row << ':' << log.col << ": 에러: " << log.msg << '\n';
         clog.width(5);
         clog << log.row << " | " << line_map[log.row]
-             << "\n      | " << indent(line_map[log.row], log.col - 1)
-             << "^" << tilde(log.word_size - 1) << '\n';
+             << "\n      | " << highlight(line_map[log.row], log.col - 1, log.word_size) << '\n';
         buffer.pop();
     }
     line_map.clear();

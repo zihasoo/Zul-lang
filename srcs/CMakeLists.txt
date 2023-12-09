@@ -1,6 +1,6 @@
 
 add_executable(
-        zulc
+        zul
         main.cpp
         System.cpp
         System.h
@@ -16,4 +16,5 @@ add_executable(
         AST.cpp
         ZulContext.cpp
         ZulContext.h
+        Zulstdio.h
 )
