@@ -27,6 +27,23 @@ using llvm::ConstantInt;
 using llvm::ConstantAggregateZero;
 using llvm::sys::getDefaultTargetTriple;
 
+bool remove_all_pred(BasicBlock* bb) {
+    if (bb->isEntryBlock())
+        return false;
+    if (bb->hasNPredecessors(0)) {
+        bb->dropAllReferences();
+        bb->eraseFromParent();
+        return true;
+    }
+    auto pred = bb->getSinglePredecessor();
+    if (remove_all_pred(pred)) {
+        bb->dropAllReferences();
+        bb->eraseFromParent();
+        return true;
+    }
+    return false;
+}
+
 Parser::Parser(const string &source_name) : lexer(source_name) {
     zulctx.module->setSourceFileName(source_name);
     zulctx.module->setTargetTriple(getDefaultTargetTriple());
@@ -832,11 +849,7 @@ void Parser::create_func(FuncProtoAST &proto, const vector<ASTPtr> &body, std::p
                 zulctx.builder.CreateRet(ConstantInt::get(Type::getInt64Ty(*zulctx.context), 0, true));
         } else if (proto.return_type == -1) {
             zulctx.builder.CreateRetVoid();
-        } else if (cur_block->hasNPredecessors(0)) {
-            cur_block->dropAllReferences();
-            cur_block->eraseFromParent();
-        }
-        else {
+        } else if (!remove_all_pred(cur_block)) {
             zulctx.module->print(llvm::errs(), nullptr);
             System::logger.log_error(name_loc, proto.name.size(),
                                      {"\"", proto.name, "\" 함수의 리턴 타입은 \"", get_type_name(proto.return_type),

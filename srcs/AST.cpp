@@ -155,11 +155,10 @@ ZulValue IfAST::code_gen(ZulContext &zulctx) {
         if (!interrupted)
             zulctx.builder.CreateBr(merge_block);
     }
-    if (merge_block->hasNPredecessorsOrMore(1)) {
-        func->insert(func->end(), merge_block);
-        zulctx.builder.SetInsertPoint(merge_block);
-    }
-    return {nullptr, -1};
+
+    func->insert(func->end(), merge_block);
+    zulctx.builder.SetInsertPoint(merge_block);
+    return nullzul;
 }
 
 LoopAST::LoopAST(ASTPtr init_body, ASTPtr test_body, ASTPtr update_body, std::vector<ASTPtr> loop_body) :
