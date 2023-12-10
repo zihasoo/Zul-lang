@@ -19,7 +19,9 @@ public:
 
     static llvm::cl::opt<std::string> output_name;
 
-    static llvm::cl::opt<bool> compile;
+    static llvm::cl::opt<bool> opt_compile;
+
+    static llvm::cl::opt<bool> opt_assembly;
 
     static void parse_arg(int argc, char **argv);
 

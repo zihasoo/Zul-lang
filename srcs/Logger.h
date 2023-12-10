@@ -40,6 +40,8 @@ public:
 
     void flush();
 
+    void set_error();
+
     [[nodiscard]] bool has_error() const;
 
 private:

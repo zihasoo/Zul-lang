@@ -107,6 +107,10 @@ void Logger::flush() {
     line_map.clear();
 }
 
+void Logger::set_error() {
+    error_flag = true;
+}
+
 bool Logger::has_error() const {
     return error_flag;
 }

@@ -9,6 +9,7 @@
 #include <memory>
 #include <vector>
 #include <sstream>
+#include <tuple>
 
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/LLVMContext.h"
@@ -34,7 +35,7 @@ private:
 
     Token cur_tok;
 
-    int cur_func_ret_type = -1;
+    int cur_ret_type = -1;
 
     void parse_top_level();
 
@@ -42,7 +43,7 @@ private:
 
     void parse_func_def(std::string &func_name, std::pair<int, int> name_loc, int target_level);
 
-    std::pair<std::vector<std::pair<std::string, int>>, bool> parse_parameter();
+    std::tuple<std::vector<std::pair<std::string, int>>, bool, bool> parse_parameter();
 
     std::pair<std::vector<ASTPtr>, int> parse_block_body(int target_level);
 
@@ -89,8 +90,8 @@ private:
     int get_op_prec();
 
     std::map<std::string, FuncProtoAST> func_proto_map = {
-            {"ㅇㄹ", FuncProtoAST("ㅇㄹ", -1, {}, false, true)},
-            {"ㅊㄹ", FuncProtoAST("ㅊㄹ", -1, {}, false, true)},
+            {STDIN_NAME, FuncProtoAST(STDIN_NAME, -1, {}, false, true)},
+            {STDOUT_NAME, FuncProtoAST(STDOUT_NAME, -1, {}, false, true)},
     };
 
     std::map<std::string, int> type_map = {

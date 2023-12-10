@@ -139,7 +139,7 @@ Value *create_int_operation(ZulContext &zulctx, Value *lhs, Value *rhs, Capture<
         case tok_lteq:
             return zulctx.builder.CreateICmpSLE(lhs, rhs);
         default:
-            System::logger.log_error(op.loc, op.word_size, "해당 연산자를 수 타입에 적용할 수 없습니다");
+            System::logger.log_error(op.loc, op.word_size, {"해당 연산자를 \"", type_name_map[id_int] ,"\" 타입에 적용할 수 없습니다"});
             return nullptr;
     }
 }
@@ -169,7 +169,7 @@ Value *create_float_operation(ZulContext &zulctx, Value *lhs, Value *rhs, Captur
         case tok_lteq:
             return zulctx.builder.CreateFCmpOLE(lhs, rhs);
         default:
-            System::logger.log_error(op.loc, op.word_size, "해당 연산자를 소수 타입에 적용할 수 없습니다");
+            System::logger.log_error(op.loc, op.word_size, {"해당 연산자를 \"", type_name_map[id_float] ,"\" 타입에 적용할 수 없습니다"});
             return nullptr;
     }
 }

@@ -155,9 +155,11 @@ ZulValue IfAST::code_gen(ZulContext &zulctx) {
         if (!interrupted)
             zulctx.builder.CreateBr(merge_block);
     }
-    func->insert(func->end(), merge_block);
-    zulctx.builder.SetInsertPoint(merge_block);
-    return nullzul;
+    if (merge_block->hasNPredecessorsOrMore(1)) {
+        func->insert(func->end(), merge_block);
+        zulctx.builder.SetInsertPoint(merge_block);
+    }
+    return {nullptr, -1};
 }
 
 LoopAST::LoopAST(ASTPtr init_body, ASTPtr test_body, ASTPtr update_body, std::vector<ASTPtr> loop_body) :
@@ -548,7 +550,7 @@ ZulValue FuncCallAST::handle_std_in(ZulContext &zulctx) {
     format_str.reserve(s * 3);
     for (int i = 0; i < s; i++) {
         if (!args[i].value->is_lvalue()) {
-            System::logger.log_error(args[i].loc, args[i].word_size, {"\"ㅇㄹ\" 함수에는 좌측값만 올 수 있습니다"});
+            System::logger.log_error(args[i].loc, args[i].word_size, {"\"", STDIN_NAME, "\" 함수에는 좌측값만 올 수 있습니다"});
             has_error = true;
         }
         auto arg = static_cast<LvalueAST *>(args[i].value.get())->get_origin_value(zulctx);
@@ -585,9 +587,9 @@ ZulValue FuncCallAST::handle_std_out(ZulContext &zulctx) {
 }
 
 ZulValue FuncCallAST::code_gen(ZulContext &zulctx) {
-    if (proto.name == "ㅇㄹ")
+    if (proto.name == STDIN_NAME)
         return handle_std_in(zulctx);
-    if (proto.name == "ㅊㄹ")
+    if (proto.name == STDOUT_NAME)
         return handle_std_out(zulctx);
     auto target_func = zulctx.module->getFunction(proto.name);
     vector<llvm::Value *> arg_values;
@@ -617,11 +619,11 @@ int FuncCallAST::get_typeid(ZulContext &zulctx) {
 }
 
 unordered_map<int, string_view> FuncCallAST::format_str_map = {
-        {id_bool,               "%u"},
-        {id_char,               "%c"},
-        {id_int,                "%lld"},
-        {id_float,              "%lf"},
-        {id_char + TYPE_COUNTS, "%s"},
+        {id_bool,                   "%u"},
+        {id_char,                   "%c"},
+        {id_int,                    "%lld"},
+        {id_float,                  "%lf"},
+        {id_char + TYPE_COUNTS,     "%s"},
         {id_char + TYPE_COUNTS * 2, "%s"},
 };
 

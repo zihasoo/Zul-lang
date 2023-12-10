@@ -16,7 +16,9 @@
 #include "Lexer.h"
 
 #define TYPE_COUNTS 4 //기본 타입의 개수
-#define ENTRY_FN_NAME "main"
+#define ENTRY_FN_NAME "시작" //진입점 함수 이름
+#define STDIN_NAME "입"
+#define STDOUT_NAME "출"
 
 enum TypeID {
     id_bool,

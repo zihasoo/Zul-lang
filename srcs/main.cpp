@@ -3,6 +3,7 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Bitcode/BitcodeReader.h"
+#include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 
@@ -30,16 +31,28 @@ using llvm::ExitOnError;
 using llvm::orc::LLJITBuilder;
 using llvm::orc::ThreadSafeModule;
 
-void print_ll(Module *module) {
+void write_module(Module *module) {
+    if (module->getFunction("main")) {
+        cerr << "에러: -S 옵션 또는 -c 옵션을 사용할 때는 이름이 \"main\" 인 함수를 사용할 수 없습니다\n";
+        return;
+    }
+    module->getFunction(ENTRY_FN_NAME)->setName("main");
+
+    if (System::output_name.empty()) {
+        System::output_name = System::source_name.substr(0, System::source_name.rfind('.') + 1) + "ll";
+    }
+
     error_code EC;
     raw_fd_ostream output_file{System::output_name, EC};
-    module->print(output_file, nullptr);
+
+    if (System::opt_assembly) {
+        module->print(output_file, nullptr);
+    } else {
+        llvm::WriteBitcodeToFile(*module, output_file);
+    }
 }
 
 void run_jit(unique_ptr<LLVMContext> context, unique_ptr<Module> module) {
-    if (System::logger.has_error())
-        return;
-
     InitializeNativeTarget();
     InitializeNativeTargetAsmPrinter();
 
@@ -61,14 +74,14 @@ void link_stdio(LLVMContext &context, Module &module) {
     auto buf_or_err = MemoryBuffer::getMemBuffer(StringRef((char *) zulstdio_bc, zulstdio_bc_len));
     auto stdio_module = getLazyBitcodeModule(buf_or_err->getMemBufferRef(), context);
     if (!stdio_module) {
-        cerr << "줄랭 stdio 모듈 로드에 실패하였습니다. 컴파일러를 재설치하세요(복구 불가)\n";
+        cerr << "에러: 줄랭 stdio 모듈 로드에 실패하였습니다. 컴파일러를 재설치하세요(복구 불가)\n";
         exit(1);
     }
 
     Linker linker(module);
 
     if (linker.linkInModule(std::move(stdio_module.get()))) {
-        cerr << "줄랭 stdio 모듈 링킹에 실패하였습니다. 컴파일러를 재설치하세요(복구 불가)\n";
+        cerr << "에러: 줄랭 stdio 모듈 링킹에 실패하였습니다. 컴파일러를 재설치하세요(복구 불가)\n";
         exit(1);
     }
 }
@@ -83,13 +96,11 @@ int main(int argc, char *argv[]) {
     if (System::logger.has_error())
         return 1;
 
-    //link_stdio(*context, *module);
-
-    if (System::compile) {
-        print_ll(module.get());
+    if (System::opt_compile || System::opt_assembly) {
+        link_stdio(*context, *module);
+        write_module(module.get());
     } else {
         run_jit(std::move(context), std::move(module));
     }
-
     return 0;
 }
