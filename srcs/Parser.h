@@ -96,6 +96,8 @@ private:
     std::map<std::string, FuncProtoAST> func_proto_map = {
             {STDIN_NAME, FuncProtoAST(STDIN_NAME, -1, {}, false, true)},
             {STDOUT_NAME, FuncProtoAST(STDOUT_NAME, -1, {}, false, true)},
+            {"scanf", FuncProtoAST("scanf", id_int, {{"", id_char + TYPE_COUNTS}}, false, true)},
+            {"printf", FuncProtoAST("printf", id_int, {{"", id_char + TYPE_COUNTS}}, false, true)},
     };
 
     std::map<std::string, int> type_map = {

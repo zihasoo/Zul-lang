@@ -13,6 +13,7 @@ using llvm::cl::OptionCategory;
 using llvm::cl::cat;
 using llvm::cl::ParseCommandLineOptions;
 using llvm::cl::HideUnrelatedOptions;
+using llvm::cl::SetVersionPrinter;
 using llvm::cl::opt;
 
 string System::source_base_name = string();
@@ -30,11 +31,11 @@ opt<bool> System::opt_assembly = opt<bool>("S", desc("ll 파일로 컴파일"), 
 Logger System::logger = Logger();
 
 void System::parse_arg(int argc, char **argv) {
-    llvm::cl::SetVersionPrinter([](llvm::raw_ostream &out) {
-        out << "zul-lang compiler version 1.0.0\nmade by ByungYun Lee 2023\n";
+    SetVersionPrinter([](llvm::raw_ostream &out) {
+        out << "zul-lang compiler version " << ZULLANG_VERSION << "\nmade by ByungYun Lee 2023\n";
     });
     HideUnrelatedOptions(zul_opt_category);
-    ParseCommandLineOptions(argc, argv, "줄랭 컴파일러 1.0.0\n");
+    ParseCommandLineOptions(argc, argv, string("줄랭 컴파일러 ") + ZULLANG_VERSION + "\n");
 
     if (source_name.empty()) {
         cerr << "에러: 소스 파일이 주어지지 않았습니다.\n";

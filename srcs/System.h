@@ -5,6 +5,8 @@
 #ifndef ZULLANG_SYSTEM_H
 #define ZULLANG_SYSTEM_H
 
+#define ZULLANG_VERSION "1.0.1"
+
 #include <string>
 #include <iostream>
 

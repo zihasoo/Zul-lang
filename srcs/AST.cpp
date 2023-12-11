@@ -241,8 +241,11 @@ ZulValue VariableAST::code_gen(ZulContext &zulctx) {
     auto value = get_origin_value(zulctx);
     if (!value.first)
         return nullzul;
-    if (value.second < TYPE_COUNTS || value.second >= TYPE_COUNTS * 2)
+    if (value.second < TYPE_COUNTS || value.second >= TYPE_COUNTS * 2) {
         value.first = zulctx.builder.CreateLoad(get_llvm_type(*zulctx.context, value.second), value.first);
+        if (value.second >= TYPE_COUNTS * 2)
+            value.second -= TYPE_COUNTS;
+    }
     return value;
 }
 
@@ -507,7 +510,12 @@ SubscriptAST::SubscriptAST(std::unique_ptr<VariableAST> target, Capture<ASTPtr> 
                                                                                          index(std::move(index)) {}
 
 ZulValue SubscriptAST::get_origin_value(ZulContext &zulctx) {
-    auto target_val = target->get_origin_value(zulctx);
+    ZulValue target_val;
+    if (target->get_typeid(zulctx) >= TYPE_COUNTS * 2) {
+        target_val = target->code_gen(zulctx);
+    } else {
+        target_val = target->get_origin_value(zulctx);
+    }
     auto index_val = index.value->code_gen(zulctx);
     if (!target_val.first || !index_val.first)
         return nullzul;
@@ -519,9 +527,10 @@ ZulValue SubscriptAST::get_origin_value(ZulContext &zulctx) {
         System::logger.log_error(index.loc, index.word_size, "배열의 인덱스는 정수여야 합니다");
         return nullzul;
     }
-    auto elm_type = get_llvm_type(*zulctx.context, target_val.second - TYPE_COUNTS);
+    target_val.second -= TYPE_COUNTS;
+    auto elm_type = get_llvm_type(*zulctx.context, target_val.second);
     auto elm_ptr = zulctx.builder.CreateGEP(elm_type, target_val.first, {index_val.first});
-    return {elm_ptr, target_val.second - TYPE_COUNTS};
+    return {elm_ptr, target_val.second};
 }
 
 ZulValue SubscriptAST::code_gen(ZulContext &zulctx) {
@@ -582,9 +591,11 @@ ZulValue FuncCallAST::handle_std_out(ZulContext &zulctx) {
         if (!arg.first)
             return nullzul;
         format_str.append(get_format_str(arg.second));
-        format_str.push_back((i == s - 1) ? '\n' : ' ');
+        if (i < s - 1)
+            format_str.push_back(' ');
         arg_values.push_back(arg.first);
     }
+    format_str.push_back('\n');
     arg_values.insert(arg_values.begin(), zulctx.builder.CreateGlobalStringPtr(format_str));
     return {zulctx.builder.CreateCall(zulctx.module->getFunction("printf"), arg_values), -1};
 }

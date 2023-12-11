@@ -148,6 +148,10 @@ void Parser::parse_global_var() {
                 System::logger.log_error(var_loc, var_name.size(), "대입 구문이 상수식이 아닙니다. 전역 변수는 상수식으로만 초기화 할 수 있습니다.");
                 return;
             }
+            if (size_expr != nullptr) {
+                System::logger.log_error(var_loc, var_name.size(), "배열 타입은 아직 선언과 동시에 초기화 할 수 없습니다");
+                return;
+            }
             auto init_val = body->code_gen(zulctx);
             if (init_val.second != type_id && !create_cast(zulctx, init_val, type_id)) {
                 System::logger.log_error(var_loc, var_name.size(),

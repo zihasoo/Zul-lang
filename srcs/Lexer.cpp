@@ -75,7 +75,7 @@ void Lexer::advance() {
 }
 
 Token Lexer::get_token() {
-    static bool is_line_start = false;
+    static bool is_line_start = true;
 
     last_word.clear();
 
