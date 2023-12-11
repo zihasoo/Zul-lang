@@ -36,7 +36,7 @@ LLVM을 기반으로 동작해 LLVM Infrastructure의 강력한 도구들을 활
 
 ## 시작하기
 
-빌드된 줄랭 컴파일러는 [다운로드 페이지](https://github.com/zihasoo/Zul-lang/releases/tag/zulc) 를 참고하세요.
+빌드된 줄랭 컴파일러는 [다운로드 페이지](https://github.com/zihasoo/Zul-lang/releases) 를 참고하세요.
 
 줄랭 컴파일러의 코드를 수정하고, 빌드하고 싶다면 LLVM을 설치해야 합니다.
 
