@@ -1,3 +1,7 @@
+
+//SPDX-FileCopyrightText: © 2023 ByungYun Lee
+//SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include <iostream>
 #include "llvm/ExecutionEngine/Orc/LLJIT.h"
 #include "llvm/Support/TargetSelect.h"
@@ -39,7 +43,8 @@ void write_module(Module *module) {
     module->getFunction(ENTRY_FN_NAME)->setName("main");
 
     if (System::output_name.empty()) {
-        System::output_name = System::source_name.substr(0, System::source_name.rfind('.') + 1) + "ll";
+        auto dot_pos = System::source_name.rfind('.') + 1;
+        System::output_name = System::source_name.substr(0, dot_pos) + (System::opt_assembly ? "ll" : "bc");
     }
 
     error_code EC;

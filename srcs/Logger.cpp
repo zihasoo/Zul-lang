@@ -1,5 +1,8 @@
+
+//SPDX-FileCopyrightText: © 2023 ByungYun Lee
+//SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include <iostream>
-#include "Utility.h"
 #include "Logger.h"
 
 using std::pair;

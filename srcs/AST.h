@@ -1,3 +1,7 @@
+
+//SPDX-FileCopyrightText: © 2023 ByungYun Lee
+//SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #ifndef ZULLANG_AST_H
 #define ZULLANG_AST_H
 

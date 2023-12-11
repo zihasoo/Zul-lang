@@ -1,3 +1,7 @@
+
+//SPDX-FileCopyrightText: © 2023 ByungYun Lee
+//SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include "Parser.h"
 
 using std::string;
@@ -36,6 +40,8 @@ bool remove_all_pred(BasicBlock* bb) {
         return true;
     }
     auto pred = bb->getSinglePredecessor();
+    if (!pred)
+        return false;
     if (remove_all_pred(pred)) {
         bb->dropAllReferences();
         bb->eraseFromParent();

@@ -1,3 +1,7 @@
+
+//SPDX-FileCopyrightText: © 2023 ByungYun Lee
+//SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include "System.h"
 
 using std::string;
@@ -26,8 +30,11 @@ opt<bool> System::opt_assembly = opt<bool>("S", desc("ll 파일로 컴파일"), 
 Logger System::logger = Logger();
 
 void System::parse_arg(int argc, char **argv) {
+    llvm::cl::SetVersionPrinter([](llvm::raw_ostream &out) {
+        out << "zul-lang compiler version 1.0.0\nmade by ByungYun Lee 2023\n";
+    });
     HideUnrelatedOptions(zul_opt_category);
-    ParseCommandLineOptions(argc, argv, "줄랭 컴파일러 v1.0.0\n");
+    ParseCommandLineOptions(argc, argv, "줄랭 컴파일러 1.0.0\n");
 
     if (source_name.empty()) {
         cerr << "에러: 소스 파일이 주어지지 않았습니다.\n";

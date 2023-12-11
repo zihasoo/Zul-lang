@@ -1,4 +1,7 @@
 
+//SPDX-FileCopyrightText: © 2023 ByungYun Lee
+//SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #ifndef ZULC_ZULCONTEXT_H
 #define ZULC_ZULCONTEXT_H
 
