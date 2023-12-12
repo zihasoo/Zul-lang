@@ -67,7 +67,7 @@ pair<unique_ptr<llvm::LLVMContext>, unique_ptr<llvm::Module>> Parser::parse() {
     parse_top_level();
 
     if (!func_proto_map.contains(ENTRY_FN_NAME) || !func_proto_map[ENTRY_FN_NAME].has_body) {
-        cerr << "에러: 진입점이 정의되지 않았습니다. \"" << ENTRY_FN_NAME << "\" 함수 정의가 필요합니다";
+        cerr << "에러: 진입점이 정의되지 않았습니다. \"" << ENTRY_FN_NAME << "\" 함수 정의가 필요합니다\n";
         System::logger.set_error();
     }
 
