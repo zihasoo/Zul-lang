@@ -100,7 +100,7 @@ Token Lexer::get_token() {
         last_word.clear();
     }
     while (last_char != '\n' &&
-           #ifdef DEBUG
+           #ifdef ZUL_DEBUG
            -1 <= last_char && last_char <= 255 &&
            #endif
            isspace(last_char))
@@ -130,7 +130,7 @@ Token Lexer::get_token() {
     }
 
     if (
-        #ifdef DEBUG
+        #ifdef ZUL_DEBUG
         -1 <= last_char && last_char <= 255 &&
         #endif
         isalpha(last_char) || last_char == '_') {
