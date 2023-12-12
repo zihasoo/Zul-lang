@@ -83,6 +83,8 @@ private:
 
     ASTPtr parse_par();
 
+    ASTPtr parse_num();
+
     ASTPtr parse_str();
 
     ASTPtr parse_char();

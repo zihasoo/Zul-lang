@@ -93,7 +93,9 @@ void link_stdio(LLVMContext &context, Module &module) {
 
 int main(int argc, char *argv[]) {
     System::parse_arg(argc, argv);
+#ifdef DEBUG
     InitLLVM X(argc, argv);
+#endif
 
     Parser parser{System::source_name};
     auto [context, module] = parser.parse();

@@ -31,7 +31,7 @@ using llvm::ConstantInt;
 using llvm::ConstantAggregateZero;
 using llvm::sys::getDefaultTargetTriple;
 
-bool remove_all_pred(BasicBlock* bb) {
+bool remove_all_pred(BasicBlock *bb) {
     if (bb->isEntryBlock())
         return false;
     if (bb->hasNPredecessors(0)) {
@@ -419,6 +419,12 @@ ASTPtr Parser::parse_expr_start() {
     }
     if (!left)
         return nullptr;
+    if (get_op_prec() == op_prec_map[tok_assn]) {
+        lexer.log_token("대입 연산을 사용할 수 없습니다. 식의 좌변이 적절한 좌측값이 아닙니다");
+        while (cur_tok != tok_newline && cur_tok != tok_eof)
+            advance();
+        return left;
+    }
     return parse_bin_op(0, std::move(left));
 }
 
@@ -496,19 +502,12 @@ ASTPtr Parser::parse_bin_op(int prev_prec, ASTPtr left) {
 }
 
 ASTPtr Parser::parse_primary() {
-    double dval;
-    long long llval;
     switch (cur_tok) {
         case tok_identifier:
             return parse_identifier();
         case tok_real:
-            dval = stod(lexer.get_word());
-            advance();
-            return make_unique<ImmRealAST>(dval);
         case tok_int:
-            llval = stoll(lexer.get_word());
-            advance();
-            return make_unique<ImmIntAST>(llval);
+            return parse_num();
         case tok_true:
             advance();
             return make_unique<ImmBoolAST>(true);
@@ -774,6 +773,28 @@ ASTPtr Parser::parse_par() {
     return ret;
 }
 
+ASTPtr Parser::parse_num() {
+    auto num_word = lexer.get_word();
+    char *end_ptr;
+    Guard g{[this]() { this->advance(); }};
+
+    if (cur_tok == tok_int) {
+        auto result = strtoll(num_word.c_str(), &end_ptr, 10);
+        if (errno != 0) {
+            lexer.log_token("잘못된 수 리터럴입니다. 오버플로우가 발생했습니다");
+            return nullptr;
+        }
+        return make_unique<ImmIntAST>(result);
+    } else {
+        auto result = strtod(num_word.c_str(), &end_ptr);
+        if (errno != 0) {
+            lexer.log_token("잘못된 실수 리터럴입니다");
+            return nullptr;
+        }
+        return make_unique<ImmRealAST>(result);
+    }
+}
+
 ASTPtr Parser::parse_str() {
     int st = lexer.get_line_index() + 1;
     do {
@@ -860,7 +881,6 @@ void Parser::create_func(FuncProtoAST &proto, const vector<ASTPtr> &body, std::p
         } else if (proto.return_type == -1) {
             zulctx.builder.CreateRetVoid();
         } else if (!remove_all_pred(cur_block)) {
-            zulctx.module->print(llvm::errs(), nullptr);
             System::logger.log_error(name_loc, proto.name.size(),
                                      {"\"", proto.name, "\" 함수의 리턴 타입은 \"", get_type_name(proto.return_type),
                                       "\" 입니다. ㅈㅈ구문이 필요합니다"});
