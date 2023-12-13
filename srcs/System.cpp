@@ -1,5 +1,5 @@
 
-//SPDX-FileCopyrightText: © 2023 ByungYun Lee
+//SPDX-FileCopyrightText: © 2023 Lee ByungYun <dlquddbs1234@gmail.com>
 //SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "System.h"
@@ -32,7 +32,7 @@ Logger System::logger = Logger();
 
 void System::parse_arg(int argc, char **argv) {
     SetVersionPrinter([](llvm::raw_ostream &out) {
-        out << "zul-lang compiler version " << ZULLANG_VERSION << "\nmade by ByungYun Lee 2023\n";
+        out << "zul-lang compiler version " << ZULLANG_VERSION << "\nmade by Lee ByungYun 2023\n";
     });
     HideUnrelatedOptions(zul_opt_category);
     ParseCommandLineOptions(argc, argv, string("줄랭 컴파일러 ") + ZULLANG_VERSION + "\n");

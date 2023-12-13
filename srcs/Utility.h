@@ -1,5 +1,5 @@
 
-//SPDX-FileCopyrightText: © 2023 ByungYun Lee
+//SPDX-FileCopyrightText: © 2023 Lee ByungYun <dlquddbs1234@gmail.com>
 //SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #ifndef ZULLANG_UTILITY_H
@@ -17,6 +17,7 @@
 #include "llvm/IR/Type.h"
 
 #include "ZulContext.h"
+#include "System.h"
 #include "Lexer.h"
 
 #define TYPE_COUNTS 4 //기본 타입의 개수

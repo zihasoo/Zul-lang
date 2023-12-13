@@ -1,5 +1,5 @@
 
-//SPDX-FileCopyrightText: © 2023 ByungYun Lee
+//SPDX-FileCopyrightText: © 2023 Lee ByungYun <dlquddbs1234@gmail.com>
 //SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #ifndef ZULLANG_LOGGER_H
@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 #include <queue>
+#include <iostream>
 #include <string_view>
 
 class Logger {

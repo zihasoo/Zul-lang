@@ -1,5 +1,5 @@
 
-//SPDX-FileCopyrightText: © 2023 ByungYun Lee
+//SPDX-FileCopyrightText: © 2023 Lee ByungYun <dlquddbs1234@gmail.com>
 //SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <iostream>
@@ -10,6 +10,7 @@
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/InitLLVM.h"
 
 #include "System.h"
 #include "Parser.h"
@@ -43,8 +44,8 @@ void write_module(Module *module) {
     module->getFunction(ENTRY_FN_NAME)->setName("main");
 
     if (System::output_name.empty()) {
-        auto dot_pos = System::source_name.rfind('.') + 1;
-        System::output_name = System::source_name.substr(0, dot_pos) + (System::opt_assembly ? "ll" : "bc");
+        auto dot_pos = System::source_name.rfind('.');
+        System::output_name = System::source_name.substr(0, dot_pos) + (System::opt_assembly ? ".ll" : ".bc");
     }
 
     error_code EC;
@@ -53,7 +54,7 @@ void write_module(Module *module) {
     if (System::opt_assembly) {
         module->print(output_file, nullptr);
     } else {
-        llvm::WriteBitcodeToFile(*module, output_file);
+        WriteBitcodeToFile(*module, output_file);
     }
 }
 
@@ -65,13 +66,12 @@ void run_jit(unique_ptr<LLVMContext> context, unique_ptr<Module> module) {
 
     ExitOnErr.setBanner(System::source_name + ": ");
 
-    auto J = ExitOnErr(LLJITBuilder().create());
-    auto M = ThreadSafeModule(std::move(module), std::move(context));
+    auto LLJIT = ExitOnErr(LLJITBuilder().create());
+    auto TSM = ThreadSafeModule(std::move(module), std::move(context));
 
-    ExitOnErr(J->addIRModule(std::move(M)));
+    ExitOnErr(LLJIT->addIRModule(std::move(TSM)));
 
-    auto zul_main_addr = ExitOnErr(J->lookup(ENTRY_FN_NAME));
-    long long (*zul_main)() = zul_main_addr.toPtr<long long()>();
+    long long (*zul_main)() = ExitOnErr(LLJIT->lookup(ENTRY_FN_NAME)).toPtr<long long()>();
     zul_main();
 }
 

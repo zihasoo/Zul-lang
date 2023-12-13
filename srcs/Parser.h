@@ -1,5 +1,5 @@
 
-//SPDX-FileCopyrightText: © 2023 ByungYun Lee
+//SPDX-FileCopyrightText: © 2023 Lee ByungYun <dlquddbs1234@gmail.com>
 //SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #ifndef ZULLANG_PARSER_H
@@ -7,12 +7,10 @@
 
 #include <string_view>
 #include <unordered_map>
-#include <set>
 #include <map>
 #include <utility>
 #include <memory>
 #include <vector>
-#include <sstream>
 #include <tuple>
 
 #include "llvm/IR/GlobalVariable.h"

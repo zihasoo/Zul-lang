@@ -1,12 +1,7 @@
 
-//SPDX-FileCopyrightText: © 2023 ByungYun Lee
+//SPDX-FileCopyrightText: © 2023 Lee ByungYun <dlquddbs1234@gmail.com>
 //SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include <sstream>
-
-#include <llvm/IR/Constants.h>
-
-#include "System.h"
 #include "Utility.h"
 
 using std::map;
