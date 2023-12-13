@@ -66,6 +66,11 @@ ZulValue FuncRetAST::code_gen(ZulContext &zulctx) {
             return nullzul;
     }
     if (return_type.value == -1) {
+        if (body && body_value.second != -1) {
+            System::logger.log_error(return_type.loc, return_type.word_size,
+                                     {"리턴 타입이 일치하지 않습니다. 함수의 반환 타입이 \"없음\" 이지만 \"",
+                                      get_type_name(body_value.second), "\" 타입을 반환하고 있습니다"});
+        }
         if (zulctx.ret_count == 1) {
             zulctx.builder.CreateRetVoid();
         } else {
@@ -590,6 +595,9 @@ ZulValue FuncCallAST::handle_std_out(ZulContext &zulctx) {
         auto arg = args[i].value->code_gen(zulctx);
         if (!arg.first)
             return nullzul;
+        if (arg.second == -1) {
+            System::logger.log_error(args[i].loc, args[i].word_size, "\"없음\" 타입을 출력할 수 없습니다");
+        }
         format_str.append(get_format_str(arg.second));
         if (i < s - 1)
             format_str.push_back(' ');
