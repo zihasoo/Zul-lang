@@ -3,6 +3,7 @@
 //SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "Lexer.h"
+#include "Utility.h"
 
 using std::string;
 using std::cerr;

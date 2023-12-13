@@ -14,7 +14,6 @@
 
 #include "Logger.h"
 #include "System.h"
-#include "Utility.h"
 
 enum Token {
     // keyword

@@ -26,6 +26,7 @@ using llvm::Value;
 using llvm::ArrayType;
 using llvm::PointerType;
 using llvm::GlobalVariable;
+using llvm::Function;
 using llvm::Constant;
 using llvm::ConstantInt;
 using llvm::ConstantAggregateZero;
@@ -109,12 +110,7 @@ void Parser::parse_top_level() {
                 advance();
             } else if (cur_tok == tok_lpar) { //함수 정의
                 advance();
-                if (func_proto_map.contains(name) && func_proto_map[name].has_body) {
-                    System::logger.log_error(name_loc, name.size(), {"\"", name, "\" 함수는 이미 정의된 함수입니다."});
-                    advance();
-                } else {
-                    parse_func_def(name, name_loc, 1);
-                }
+                parse_func_def(name, name_loc, 1);
             } else {
                 lexer.log_unexpected();
                 advance();
@@ -229,8 +225,10 @@ tuple<vector<pair<string, int>>, bool, bool> Parser::parse_parameter() {
         if (cur_tok == tok_va_arg) {
             advance();
             if (cur_tok != tok_rpar) {
-                lexer.log_token("가변 인자 뒤에는 다른 인자가 올 수 없습니다");
+                lexer.log_token("가변 인자 뒤에는 다른 인자가 올 수 없습니다. )가 와야 합니다");
                 err = true;
+                while (cur_tok != tok_rpar && cur_tok != tok_eof && cur_tok != tok_newline)
+                    advance();
             }
             advance();
             return {params, true, err};
@@ -259,8 +257,12 @@ tuple<vector<pair<string, int>>, bool, bool> Parser::parse_parameter() {
             params.emplace_back(name, type.first);
             zulctx.local_var_map.emplace(name, make_pair(nullptr, type.first));
         }
-        if (cur_tok == tok_rpar || cur_tok == tok_eof)
+        if (cur_tok == tok_rpar)
             break;
+        if (cur_tok == tok_eof || cur_tok == tok_newline) {
+            lexer.log_unexpected("괄호가 닫히지 않았습니다. )가 와야 합니다");
+            return {params, false, true};
+        }
         if (cur_tok != tok_comma) {
             lexer.log_unexpected("콤마가 와야 합니다");
             err = true;
@@ -272,8 +274,44 @@ tuple<vector<pair<string, int>>, bool, bool> Parser::parse_parameter() {
 }
 
 void Parser::parse_func_def(string &func_name, pair<int, int> name_loc, int target_level) {
+//---------------------------------전방 선언된 함수인지 확인---------------------------------
+    bool exist = false;
+    if (func_proto_map.contains(func_name)) {
+        exist = true;
+        if (func_proto_map[func_name].has_body) {
+            System::logger.log_error(name_loc, func_name.size(), {"\"", func_name, "\" 함수는 이미 정의된 함수입니다."});
+            Token before = cur_tok;
+            while (true) {
+                if (cur_tok == tok_eof || (before == tok_newline && cur_tok != tok_indent))
+                    break;
+                before = cur_tok;
+                advance();
+            }
+            return;
+        }
+    }
 //---------------------------------함수 프로토타입 파싱---------------------------------
     auto [params, is_var_arg, err] = parse_parameter();
+    if (exist && !err) { //전방 선언된 함수면 프로토타입이 같은지 확인
+        auto &origin_params = func_proto_map[func_name].params;
+        if (params.size() != origin_params.size() || func_proto_map[func_name].is_var_arg != is_var_arg) {
+            System::logger.log_error(name_loc, func_name.size(), "전방 선언된 함수와 매개변수 개수가 맞지 않습니다");
+            err = true;
+        } else {
+            for (int i = 0; i < origin_params.size(); ++i) {
+                if (origin_params[i].second != params[i].second) {
+                    System::logger.log_error(name_loc, func_name.size(),
+                                             {"전방 선언된 함수와 매개변수의 타입이 일치하지 않습니다. 전방 선언된 함수의 매개변수 타입은 \"",
+                                              get_type_name(origin_params[i].second),
+                                              "\" 이고, 정의된 타입은 \"", get_type_name(params[i].second), "\" 입니다"});
+                    err = true;
+                }
+            }
+            if (!err) {
+                origin_params = std::move(params);
+            }
+        }
+    }
     cur_ret_type = -1;
     if (cur_tok == tok_identifier) {
         auto type_name = lexer.get_word();
@@ -285,17 +323,27 @@ void Parser::parse_func_def(string &func_name, pair<int, int> name_loc, int targ
         }
         advance();
     }
+    if (exist && func_proto_map[func_name].return_type != cur_ret_type) {
+        System::logger.log_error(name_loc, func_name.size(), {"전방 선언된 함수와 반환 타입이 일치하지 않습니다. 전방 선언된 함수의 리턴 타입은 \"",
+                                                              get_type_name(func_proto_map[func_name].return_type),
+                                                              "\" 이고, 정의된 리턴 타입은 \"", get_type_name(cur_ret_type),
+                                                              "\" 입니다"});
+        err = true;
+    }
     if (func_name == ENTRY_FN_NAME && cur_ret_type != id_int) {
         System::logger.log_error(name_loc, func_name.size(), {ENTRY_FN_NAME, " 함수의 반환 타입은 반드시 \"수\" 여야 합니다"});
         err = true;
     }
     if (cur_tok == tok_newline) { //함수 선언만
-        if (!err) {
+        if (exist) {
+            System::logger.log_error(name_loc, func_name.size(), "이미 선언된 함수를 다시 선언할 수 없습니다");
+        } else if (!err) {
             func_proto_map.emplace(func_name,
                                    FuncProtoAST(func_name, cur_ret_type, std::move(params), false, is_var_arg));
             func_proto_map[func_name].code_gen(zulctx);
         }
         zulctx.local_var_map.clear();
+        advance();
         return;
     }
     if (cur_tok != tok_colon) {
@@ -309,7 +357,12 @@ void Parser::parse_func_def(string &func_name, pair<int, int> name_loc, int targ
     }
     advance();
     if (!err) {
-        func_proto_map.emplace(func_name, FuncProtoAST(func_name, cur_ret_type, std::move(params), true, is_var_arg));
+        if (exist) {
+            func_proto_map[func_name].has_body = true;
+        } else {
+            func_proto_map.emplace(func_name,
+                                   FuncProtoAST(func_name, cur_ret_type, std::move(params), true, is_var_arg));
+        }
     }
 //---------------------------------함수 몸체 파싱---------------------------------
     auto [func_body, stop_level] = parse_block_body(target_level);
@@ -319,7 +372,7 @@ void Parser::parse_func_def(string &func_name, pair<int, int> name_loc, int targ
         return;
     }
     if (!err) {
-        create_func(func_proto_map[func_name], func_body, name_loc);
+        create_func(func_proto_map[func_name], func_body, name_loc, exist);
     }
 }
 
@@ -673,7 +726,7 @@ ASTPtr Parser::parse_func_call(string &name, pair<int, int> name_loc) {
         if (cur_tok == tok_comma) {
             advance();
         } else if (cur_tok == tok_eof) {
-            lexer.log_unexpected("괄호가 닫히지 않았습니다");
+            lexer.log_unexpected("괄호가 닫히지 않았습니다. )가 필요합니다");
         } else if (cur_tok != tok_rpar) {
             lexer.log_unexpected("콤마가 필요합니다");
         }
@@ -843,8 +896,13 @@ ASTPtr Parser::parse_char() {
     return make_unique<ImmCharAST>(str[0]);
 }
 
-void Parser::create_func(FuncProtoAST &proto, const vector<ASTPtr> &body, std::pair<int, int> name_loc) {
-    auto llvm_func = proto.code_gen(zulctx);
+void Parser::create_func(FuncProtoAST &proto, const vector<ASTPtr> &body, std::pair<int, int> name_loc, bool exist) {
+    llvm::Function *llvm_func;
+    if (exist) {
+        llvm_func = zulctx.module->getFunction(proto.name);
+    } else {
+        llvm_func = proto.code_gen(zulctx);
+    }
     auto entry_block = BasicBlock::Create(*zulctx.context, "entry", llvm_func);
     zulctx.builder.SetInsertPoint(entry_block);
     llvm::IRBuilder<> entry_builder(entry_block, entry_block->begin());

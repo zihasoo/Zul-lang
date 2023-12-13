@@ -8,6 +8,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <map>
+#include <sstream>
 #include <utility>
 #include <memory>
 #include <vector>
@@ -87,7 +88,7 @@ private:
 
     ASTPtr parse_char();
 
-    void create_func(FuncProtoAST &proto, const std::vector<ASTPtr> &body, std::pair<int, int> name_loc);
+    void create_func(FuncProtoAST &proto, const std::vector<ASTPtr> &body, std::pair<int, int> name_loc, bool exist);
 
     void advance();
 

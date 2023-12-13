@@ -37,9 +37,8 @@ using llvm::orc::LLJITBuilder;
 using llvm::orc::ThreadSafeModule;
 
 void write_module(Module *module) {
-    if (module->getFunction("main")) {
-        cerr << "에러: -S 옵션 또는 -c 옵션을 사용할 때는 이름이 \"main\" 인 함수를 사용할 수 없습니다\n";
-        return;
+    if (auto original_main = module->getFunction("main")) {
+        original_main->setName("old_main");
     }
     module->getFunction(ENTRY_FN_NAME)->setName("main");
 
