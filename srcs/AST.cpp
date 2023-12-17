@@ -395,11 +395,12 @@ ZulValue BinOpAST::short_circuit_code_gen(ZulContext &zulctx) const {
         return nullzul;
     }
     zulctx.builder.CreateBr(sc_end);
+    auto last_block = zulctx.builder.GetInsertBlock();
 
     zulctx.builder.SetInsertPoint(sc_end);
     auto phi = zulctx.builder.CreatePHI(get_llvm_type(*zulctx.context, 0), 2);
     phi->addIncoming(llvm::ConstantInt::getBool(*zulctx.context, op.value == tok_or), origin_block);
-    phi->addIncoming(rhs.first, sc_test);
+    phi->addIncoming(rhs.first, last_block);
     return {phi, 0};
 }
 
