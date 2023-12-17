@@ -19,8 +19,6 @@
 
 struct ExprAST;
 
-using GlobalVarMap = std::map<std::string, std::pair<llvm::GlobalVariable *, int>>;
-using LocalVarMap = std::unordered_map<std::string, std::pair<llvm::AllocaInst *, int>>;
 using ZulValue = std::pair<llvm::Value *, int>;
 using ASTPtr = std::unique_ptr<ExprAST>;
 using CondBodyPair = std::pair<ASTPtr, std::vector<ASTPtr>>;
@@ -30,8 +28,8 @@ struct ZulContext {
     std::unique_ptr<llvm::LLVMContext> context{new llvm::LLVMContext{}};
     std::unique_ptr<llvm::Module> module{new llvm::Module{System::source_base_name, *context}};
     llvm::IRBuilder<> builder{*context};
-    GlobalVarMap global_var_map;
-    LocalVarMap local_var_map;
+    std::map<std::string, std::pair<llvm::GlobalVariable *, int>> global_var_map;
+    std::unordered_map<std::string, std::pair<llvm::AllocaInst *, int>> local_var_map;
     std::stack<std::vector<std::string>> scope_stack;
     std::stack<llvm::BasicBlock *> loop_update_stack;
     std::stack<llvm::BasicBlock *> loop_end_stack;
@@ -44,7 +42,7 @@ struct ZulContext {
 
     bool var_exist(const std::string &name);
 
-    void remove_top_scope_vars();
+    void remove_scope_vars();
 };
 
 

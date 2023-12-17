@@ -608,7 +608,7 @@ std::pair<ASTPtr, int> Parser::parse_if(int target_level) {
     advance(); //ㅇㅈ? 지나치기
     auto [if_cond, error] = parse_if_header();
     auto [if_body, stop_level] = parse_block_body(target_level);
-    zulctx.remove_top_scope_vars();
+    zulctx.remove_scope_vars();
     if (if_body.empty() && !System::logger.has_error()) {
         lexer.log_token("ㅇㅈ?문의 몸체가 정의되지 않았습니다");
         error = true;
@@ -620,7 +620,7 @@ std::pair<ASTPtr, int> Parser::parse_if(int target_level) {
         advance();
         auto [elif_cond, elif_err] = parse_if_header();
         auto [elif_body, level] = parse_block_body(target_level);
-        zulctx.remove_top_scope_vars();
+        zulctx.remove_scope_vars();
         stop_level = level;
         error = error || elif_err;
         if (elif_body.empty() && !System::logger.has_error()) {
@@ -639,7 +639,7 @@ std::pair<ASTPtr, int> Parser::parse_if(int target_level) {
         }
         advance();
         auto [body, level] = parse_block_body(target_level);
-        zulctx.remove_top_scope_vars();
+        zulctx.remove_scope_vars();
         stop_level = level;
         if (body.empty() && !System::logger.has_error()) {
             lexer.log_token("ㄴㄴ문의 몸체가 정의되지 않았습니다");
@@ -681,7 +681,7 @@ std::pair<ASTPtr, int> Parser::parse_for(int target_level) {
     zulctx.in_loop = true;
     auto [for_body, stop_level] = parse_block_body(target_level);
     zulctx.in_loop = in_loop;
-    zulctx.remove_top_scope_vars();
+    zulctx.remove_scope_vars();
     if (for_body.empty() && !System::logger.has_error()) {
         lexer.log_token("ㄱㄱ문의 몸체가 정의되지 않았습니다");
         return {nullptr, stop_level};

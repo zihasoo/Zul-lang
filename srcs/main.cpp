@@ -65,12 +65,12 @@ void run_jit(unique_ptr<LLVMContext> context, unique_ptr<Module> module) {
 
     ExitOnErr.setBanner(System::source_name + ": ");
 
-    auto LLJIT = ExitOnErr(LLJITBuilder().create());
-    auto TSM = ThreadSafeModule(std::move(module), std::move(context));
+    auto lljit = ExitOnErr(LLJITBuilder().create());
+    auto tsm = ThreadSafeModule(std::move(module), std::move(context));
 
-    ExitOnErr(LLJIT->addIRModule(std::move(TSM)));
+    ExitOnErr(lljit->addIRModule(std::move(tsm)));
 
-    long long (*zul_main)() = ExitOnErr(LLJIT->lookup(ENTRY_FN_NAME)).toPtr<long long()>();
+    long long (*zul_main)() = ExitOnErr(lljit->lookup(ENTRY_FN_NAME)).toPtr<long long()>();
     zul_main();
 }
 

@@ -5,7 +5,7 @@
 #ifndef ZULLANG_SYSTEM_H
 #define ZULLANG_SYSTEM_H
 
-#define ZULLANG_VERSION "1.0.3"
+#define ZULLANG_VERSION "1.0.4"
 
 #include <string>
 #include <iostream>
