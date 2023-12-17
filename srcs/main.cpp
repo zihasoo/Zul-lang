@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
     InitLLVM X(argc, argv);
 #endif
 
-    Parser parser{System::source_name};
+    Parser parser{System::source_name, System::target_triple};
     auto [context, module] = parser.parse();
 
     if (System::logger.has_error())

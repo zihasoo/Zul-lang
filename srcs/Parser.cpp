@@ -30,7 +30,7 @@ using llvm::Function;
 using llvm::Constant;
 using llvm::ConstantInt;
 using llvm::ConstantAggregateZero;
-using llvm::sys::getDefaultTargetTriple;
+using llvm::sys::getProcessTriple;
 
 bool remove_all_pred(BasicBlock *bb) {
     if (bb->isEntryBlock())
@@ -51,13 +51,10 @@ bool remove_all_pred(BasicBlock *bb) {
     return false;
 }
 
-Parser::Parser(const string &source_name) : lexer(source_name) {
+Parser::Parser(const string &source_name, const std::string &target_triple) : lexer(source_name) {
     zulctx.module->setSourceFileName(source_name);
-    zulctx.module->setTargetTriple(getDefaultTargetTriple());
-    advance();
-}
+    zulctx.module->setTargetTriple(target_triple);
 
-pair<unique_ptr<llvm::LLVMContext>, unique_ptr<llvm::Module>> Parser::parse() {
     auto i32ty = Type::getInt32Ty(*zulctx.context);
     auto i8ptrty = PointerType::getUnqual(Type::getInt8Ty(*zulctx.context));
     auto fty = llvm::FunctionType::get(i32ty, {i8ptrty}, true);
@@ -65,6 +62,10 @@ pair<unique_ptr<llvm::LLVMContext>, unique_ptr<llvm::Module>> Parser::parse() {
     llvm::Function::Create(fty, llvm::Function::ExternalLinkage, "printf", *zulctx.module);
     llvm::Function::Create(fty, llvm::Function::ExternalLinkage, "scanf", *zulctx.module);
 
+    advance();
+}
+
+pair<unique_ptr<llvm::LLVMContext>, unique_ptr<llvm::Module>> Parser::parse() {
     parse_top_level();
 
     if (!func_proto_map.contains(ENTRY_FN_NAME) || !func_proto_map[ENTRY_FN_NAME].has_body) {

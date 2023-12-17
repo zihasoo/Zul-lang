@@ -18,6 +18,8 @@ public:
 
     static std::string source_base_name;
 
+    static std::string target_triple;
+
     static llvm::cl::opt<std::string> source_name;
 
     static llvm::cl::opt<std::string> output_name;

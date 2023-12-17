@@ -2,6 +2,7 @@
 //SPDX-FileCopyrightText: © 2023 Lee ByungYun <dlquddbs1234@gmail.com>
 //SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "llvm/TargetParser/Host.h"
 #include "System.h"
 
 using std::string;
@@ -15,8 +16,11 @@ using llvm::cl::ParseCommandLineOptions;
 using llvm::cl::HideUnrelatedOptions;
 using llvm::cl::SetVersionPrinter;
 using llvm::cl::opt;
+using llvm::sys::getProcessTriple;
 
 string System::source_base_name = string();
+
+string System::target_triple = getProcessTriple();
 
 OptionCategory System::zul_opt_category = OptionCategory("zul options");
 
@@ -31,10 +35,14 @@ opt<bool> System::opt_assembly = opt<bool>("S", desc("ll 파일로 컴파일"), 
 Logger System::logger = Logger();
 
 void System::parse_arg(int argc, char **argv) {
-    SetVersionPrinter([](llvm::raw_ostream &out) {
-        out << "zul-lang compiler version " << ZULLANG_VERSION << "\nmade by Lee ByungYun 2023\n";
-    });
     HideUnrelatedOptions(zul_opt_category);
+
+    SetVersionPrinter([](llvm::raw_ostream &out) {
+        out << "zul-lang compiler version " << ZULLANG_VERSION << '\n';
+        out << "Target: " << target_triple << '\n';
+        out << "made by Lee ByungYun 2023\n";
+    });
+
     ParseCommandLineOptions(argc, argv, string("줄랭 컴파일러 ") + ZULLANG_VERSION + "\n");
 
     if (source_name.empty()) {

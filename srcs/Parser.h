@@ -27,7 +27,7 @@
 
 class Parser {
 public:
-    explicit Parser(const std::string &source_name);
+    Parser(const std::string &source_name, const std::string &target_triple);
 
     std::pair<std::unique_ptr<llvm::LLVMContext>, std::unique_ptr<llvm::Module>> parse();
 
