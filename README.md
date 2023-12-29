@@ -31,7 +31,7 @@ LLVM을 기반으로 동작해 LLVM Infrastructure의 강력한 도구들을 활
 줄랭 컴파일러의 코드를 수정하고, 직접 빌드하고 싶다면 LLVM을 설치해야 합니다. 또한 cmake, C/C++ 빌드 시스템, C/C++ 컴파일러가 필요합니다.
 자세한 내용은 [줄랭 세팅 방법](./zullang_TMI.md#줄랭-세팅-방법)을 참고하세요.
 
-줄랭의 문법에 대한 설명은 [줄랭 Documentation](./zullang_documentation.md) 에서 확인하실 수 있습니다.
+줄랭의 문법에 대한 설명은 [줄랭 Documentation](https://github.com/zihasoo/Zul-lang/wiki/Zul%E2%80%90lang-Documentation) 에서 확인하실 수 있습니다.
 
 ## 코드 예시:
 
