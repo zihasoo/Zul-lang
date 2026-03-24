@@ -37,7 +37,7 @@
 
 아래와 같은 명령을 사용하면 cmake가 ninja 구성을 생성해줍니다. 반드시 빌드 내용물이 쓰여질 빈 디렉토리에서
 해당 명령을 실행해야 하고, ninja와 clang이 환경 변수에 등록되어 있어야 합니다.
-> `cmake <llvm-project/llvm 경로> -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_C_COMPILER=clang++ -DLLVM_HOST_TRIPLE=x86_64-pc-windows-msvc`
+> `cmake <llvm-project/llvm 경로> -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DLLVM_HOST_TRIPLE=x86_64-pc-windows-msvc`
 
 -G는 제네레이터를 Ninja로 설정한 것이고, -D는 cmake 변수를 정의할 때 사용하는 옵션입니다.
 해당 옵션으로 CMAKE_BUILD_TYPE, CMAKE_C_COMPILER 등 변수들을 적절하게 설정하였습니다.
@@ -59,7 +59,7 @@
 
 8. 아까처럼 빌드 디렉토리로 들어가서, 아래 명령을 실행합니다.
 
-> `cmake <줄랭 레포지토리 루트 경로> -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_C_COMPILER=clang++ -DLLVM_DIR=<위에서 복사한 경로>`
+> `cmake <줄랭 레포지토리 루트 경로> -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DLLVM_DIR=<위에서 복사한 경로>`
 
 -DLLVM_DIR을 꼭 넣어주어야 합니다. 만약 릴리즈와 디버그 두 개의 빌드를 하려고 한다면, 릴리즈로 빌드할 때는 DLLVM_DIR에 릴리즈로 빌드한
 LLVM의 경로를, 디버그로 빌드할때는 디버그로 빌드한 LLVM의 경로를 넣어주면 됩니다.
