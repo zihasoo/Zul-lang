@@ -1,5 +1,5 @@
 cmake-build-debug-clang
 cmake-build-release-clang
 .idea/
-main.ll
-main.zul
+*.ll
+*.zul

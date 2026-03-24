@@ -9,8 +9,6 @@
 #include <memory>
 #include <utility>
 #include <vector>
-#include <map>
-#include <stack>
 #include <unordered_map>
 
 #include "llvm/ADT/APFloat.h"
@@ -33,17 +31,17 @@
 struct ExprAST {
     virtual ~ExprAST() = default;
 
-    virtual ZulValue code_gen(ZulContext &zulctx) = 0;
+    virtual ZulValue code_gen(ZulContext &zul_context) = 0;
 
     virtual bool is_const();
 
     virtual bool is_lvalue();
 
-    virtual int get_typeid(ZulContext &zulctx);
+    virtual int get_typeid(ZulContext &zul_context);
 };
 
-struct LvalueAST : ExprAST {
-    virtual ZulValue get_origin_value(ZulContext &zulctx) = 0;
+struct LValueAST : ExprAST {
+    virtual ZulValue get_origin_value(ZulContext &zul_context) = 0;
 
     bool is_lvalue() override;
 };
@@ -60,18 +58,18 @@ struct FuncProtoAST {
     FuncProtoAST(std::string name, int return_type, std::vector<std::pair<std::string, int>> params,
                  bool has_body, bool is_var_arg);
 
-    llvm::Function *code_gen(ZulContext &zulctx);
+    llvm::Function *code_gen(ZulContext &zul_context) const;
 };
 
 struct FuncRetAST : public ExprAST {
-    Capture<int> return_type;
     ASTPtr body;
+    Capture<int> return_type;
 
     FuncRetAST(ASTPtr body, Capture<int> return_type);
 
-    ZulValue code_gen(ZulContext &zulctx) override;
+    ZulValue code_gen(ZulContext &zul_context) override;
 
-    int get_typeid(ZulContext &zulctx) override;
+    int get_typeid(ZulContext &zul_context) override;
 };
 
 struct IfAST : public ExprAST {
@@ -81,7 +79,7 @@ struct IfAST : public ExprAST {
 
     IfAST(CondBodyPair if_pair, std::vector<CondBodyPair> elif_pair_list, std::vector<ASTPtr> else_body);
 
-    ZulValue code_gen(ZulContext &zulctx) override;
+    ZulValue code_gen(ZulContext &zul_context) override;
 };
 
 struct LoopAST : public ExprAST {
@@ -92,27 +90,27 @@ struct LoopAST : public ExprAST {
 
     LoopAST(ASTPtr init_body, ASTPtr test_body, ASTPtr update_body, std::vector<ASTPtr> loop_body);
 
-    ZulValue code_gen(ZulContext &zulctx) override;
+    ZulValue code_gen(ZulContext &zul_context) override;
 };
 
 struct ContinueAST : public ExprAST {
-    ZulValue code_gen(ZulContext &zulctx) override;
+    ZulValue code_gen(ZulContext &zul_context) override;
 };
 
 struct BreakAST : public ExprAST {
-    ZulValue code_gen(ZulContext &zulctx) override;
+    ZulValue code_gen(ZulContext &zul_context) override;
 };
 
-struct VariableAST : public LvalueAST {
+struct VariableAST : public LValueAST {
     std::string name;
 
     explicit VariableAST(std::string name);
 
-    ZulValue get_origin_value(ZulContext &zulctx) override;
+    ZulValue get_origin_value(ZulContext &zul_context) override;
 
-    ZulValue code_gen(ZulContext &zulctx) override;
+    ZulValue code_gen(ZulContext &zul_context) override;
 
-    int get_typeid(ZulContext &zulctx) override;
+    int get_typeid(ZulContext &zul_context) override;
 };
 
 struct VariableDeclAST : public ExprAST {
@@ -120,23 +118,23 @@ struct VariableDeclAST : public ExprAST {
     int type;
     ASTPtr body;
 
-    VariableDeclAST(Capture<std::string> name, ZulContext &zulctx, int type, ASTPtr body = nullptr);
+    VariableDeclAST(Capture<std::string> name, ZulContext &zul_context, int type, ASTPtr body = nullptr);
 
-    VariableDeclAST(Capture<std::string> name, ZulContext &zulctx, ASTPtr body);
+    VariableDeclAST(Capture<std::string> name, ZulContext &zul_context, ASTPtr body);
 
-    void register_var(ZulContext &zulctx);
+    void register_var(ZulContext &zul_context);
 
-    ZulValue code_gen(ZulContext &zulctx) override;
+    ZulValue code_gen(ZulContext &zul_context) override;
 };
 
 struct VariableAssnAST : public ExprAST {
-    std::unique_ptr<LvalueAST> target;
+    std::unique_ptr<LValueAST> target;
     Capture<Token> op;
     ASTPtr body;
 
-    VariableAssnAST(std::unique_ptr<LvalueAST> target, Capture<Token> op, ASTPtr body);
+    VariableAssnAST(std::unique_ptr<LValueAST> target, Capture<Token> op, ASTPtr body);
 
-    ZulValue code_gen(ZulContext &zulctx) override;
+    ZulValue code_gen(ZulContext &zul_context) override;
 };
 
 struct BinOpAST : public ExprAST {
@@ -145,13 +143,13 @@ struct BinOpAST : public ExprAST {
 
     BinOpAST(ASTPtr left, ASTPtr right, Capture<Token> op);
 
-    ZulValue short_circuit_code_gen(ZulContext &zulctx) const;
+    ZulValue short_circuit_code_gen(ZulContext &zul_context) const;
 
-    ZulValue code_gen(ZulContext &zulctx) override;
+    ZulValue code_gen(ZulContext &zul_context) override;
 
     bool is_const() override;
 
-    int get_typeid(ZulContext &zulctx) override;
+    int get_typeid(ZulContext &zul_context) override;
 };
 
 struct UnaryOpAST : public ExprAST {
@@ -160,24 +158,24 @@ struct UnaryOpAST : public ExprAST {
 
     UnaryOpAST(ASTPtr body, Capture<Token> op);
 
-    ZulValue code_gen(ZulContext &zulctx) override;
+    ZulValue code_gen(ZulContext &zul_context) override;
 
     bool is_const() override;
 
-    int get_typeid(ZulContext &zulctx) override;
+    int get_typeid(ZulContext &zul_context) override;
 };
 
-struct SubscriptAST : public LvalueAST {
+struct SubscriptAST : public LValueAST {
     std::unique_ptr<VariableAST> target;
     Capture<ASTPtr> index;
 
     SubscriptAST(std::unique_ptr<VariableAST> target, Capture<ASTPtr> index);
 
-    ZulValue get_origin_value(ZulContext &zulctx) override;
+    ZulValue get_origin_value(ZulContext &zul_context) override;
 
-    ZulValue code_gen(ZulContext &zulctx) override;
+    ZulValue code_gen(ZulContext &zul_context) override;
 
-    int get_typeid(ZulContext &zulctx) override;
+    int get_typeid(ZulContext &zul_context) override;
 };
 
 struct FuncCallAST : public ExprAST {
@@ -190,13 +188,13 @@ struct FuncCallAST : public ExprAST {
 
     std::string_view get_format_str(int type_id);
 
-    ZulValue handle_std_in(ZulContext &zulctx);
+    ZulValue handle_std_in(ZulContext &zul_context);
 
-    ZulValue handle_std_out(ZulContext &zulctx);
+    ZulValue handle_std_out(ZulContext &zul_context);
 
-    ZulValue code_gen(ZulContext &zulctx) override;
+    ZulValue code_gen(ZulContext &zul_context) override;
 
-    int get_typeid(ZulContext &zulctx) override;
+    int get_typeid(ZulContext &zul_context) override;
 };
 
 struct ImmBoolAST : public ExprAST {
@@ -204,11 +202,11 @@ struct ImmBoolAST : public ExprAST {
 
     explicit ImmBoolAST(bool val);
 
-    ZulValue code_gen(ZulContext &zulctx) override;
+    ZulValue code_gen(ZulContext &zul_context) override;
 
     bool is_const() override;
 
-    int get_typeid(ZulContext &zulctx) override;
+    int get_typeid(ZulContext &zul_context) override;
 };
 
 struct ImmCharAST : public ExprAST {
@@ -216,11 +214,11 @@ struct ImmCharAST : public ExprAST {
 
     explicit ImmCharAST(char val);
 
-    ZulValue code_gen(ZulContext &zulctx) override;
+    ZulValue code_gen(ZulContext &zul_context) override;
 
     bool is_const() override;
 
-    int get_typeid(ZulContext &zulctx) override;
+    int get_typeid(ZulContext &zul_context) override;
 };
 
 
@@ -229,11 +227,11 @@ struct ImmIntAST : public ExprAST {
 
     explicit ImmIntAST(long long val);
 
-    ZulValue code_gen(ZulContext &zulctx) override;
+    ZulValue code_gen(ZulContext &zul_context) override;
 
     bool is_const() override;
 
-    int get_typeid(ZulContext &zulctx) override;
+    int get_typeid(ZulContext &zul_context) override;
 };
 
 struct ImmRealAST : public ExprAST {
@@ -241,11 +239,11 @@ struct ImmRealAST : public ExprAST {
 
     explicit ImmRealAST(double val);
 
-    ZulValue code_gen(ZulContext &zulctx) override;
+    ZulValue code_gen(ZulContext &zul_context) override;
 
     bool is_const() override;
 
-    int get_typeid(ZulContext &zulctx) override;
+    int get_typeid(ZulContext &zul_context) override;
 };
 
 struct ImmStrAST : public ExprAST {
@@ -253,11 +251,11 @@ struct ImmStrAST : public ExprAST {
 
     explicit ImmStrAST(std::string val);
 
-    ZulValue code_gen(ZulContext &zulctx) override;
+    ZulValue code_gen(ZulContext &zul_context) override;
 
     bool is_const() override;
 
-    int get_typeid(ZulContext &zulctx) override;
+    int get_typeid(ZulContext &zul_context) override;
 };
 
 #endif //ZULLANG_AST_H

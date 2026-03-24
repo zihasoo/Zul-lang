@@ -32,11 +32,11 @@ void Lexer::log_unexpected(string_view msg) {
         log_token({"예기치 않은 토큰 \"", last_word, "\" ", msg});
 }
 
-void Lexer::log_token(string_view msg) {
+void Lexer::log_token(string_view msg) const {
     System::logger.log_error(token_loc, last_word.size(), msg);
 }
 
-void Lexer::log_token(const std::initializer_list<std::string_view> &msgs) {
+void Lexer::log_token(std::initializer_list<std::string_view> msgs) const {
     System::logger.log_error(token_loc, last_word.size(), msgs);
 }
 
@@ -198,15 +198,15 @@ string &Lexer::get_word() {
     return last_word;
 }
 
-pair<int, int> Lexer::get_token_loc() {
+pair<int, int> Lexer::get_token_loc() const {
     return token_loc;
 }
 
-int Lexer::get_line_index() {
+int Lexer::get_line_index() const {
     return cur_line.size() - raw_last_char.size() - 1;
 }
 
-std::string Lexer::get_line_substr(int st, int ed) {
+std::string Lexer::get_line_substr(int st, int ed) const {
     return cur_line.substr(st, ed - st);
 }
 

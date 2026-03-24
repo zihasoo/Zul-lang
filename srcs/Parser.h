@@ -32,7 +32,7 @@ public:
     std::pair<std::unique_ptr<llvm::LLVMContext>, std::unique_ptr<llvm::Module>> parse();
 
 private:
-    ZulContext zulctx;
+    ZulContext zul_context;
 
     Lexer lexer;
 
@@ -54,7 +54,7 @@ private:
 
     ASTPtr parse_expr_start();
 
-    ASTPtr parse_local_var(std::unique_ptr<LvalueAST> lvalue, Capture<std::string> name_cap);
+    ASTPtr parse_local_var(std::unique_ptr<LValueAST> lvalue, Capture<std::string> name_cap);
 
     ASTPtr parse_expr();
 
@@ -72,7 +72,7 @@ private:
 
     ASTPtr parse_func_call(std::string &name, std::pair<int, int> name_loc);
 
-    std::unique_ptr<LvalueAST> parse_lvalue(std::string &name, std::pair<int, int> name_loc, bool check_exist = true);
+    std::unique_ptr<LValueAST> parse_lvalue(std::string &name, std::pair<int, int> name_loc, bool check_exist = true);
 
     ASTPtr parse_subscript();
 
@@ -92,13 +92,13 @@ private:
 
     void advance();
 
-    int get_op_prec();
+    int get_op_prec() const;
 
     std::map<std::string, FuncProtoAST> func_proto_map = {
             {STDIN_NAME, FuncProtoAST(STDIN_NAME, -1, {}, false, true)},
             {STDOUT_NAME, FuncProtoAST(STDOUT_NAME, -1, {}, false, true)},
-            {"scanf", FuncProtoAST("scanf", id_int, {{"", id_char + TYPE_COUNTS}}, false, true)},
-            {"printf", FuncProtoAST("printf", id_int, {{"", id_char + TYPE_COUNTS}}, false, true)},
+            {"scanf", FuncProtoAST("scanf", ID_INT, {{"", ID_CHAR + ID_MAX}}, false, true)},
+            {"printf", FuncProtoAST("printf", ID_INT, {{"", ID_CHAR + ID_MAX}}, false, true)},
     };
 
     std::map<std::string, int> type_map = {

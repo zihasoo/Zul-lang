@@ -23,7 +23,7 @@ void Logger::log_error(pair<int, int> loc, unsigned word_size, string_view msg) 
     error_flag = true;
 }
 
-void Logger::log_error(pair<int, int> loc, unsigned word_size, const std::initializer_list<std::string_view> &msgs) {
+void Logger::log_error(pair<int, int> loc, unsigned word_size, std::initializer_list<std::string_view> msgs) {
     //매모리의 반복 재할당을 막기 위해 initializer_list로 받고 한 번에 할당
     string str;
     unsigned size = 0;

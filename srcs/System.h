@@ -8,7 +8,6 @@
 #define ZULLANG_VERSION "1.0.4"
 
 #include <string>
-#include <iostream>
 #include "llvm/Support/CommandLine.h"
 #include "Logger.h"
 

@@ -6,34 +6,13 @@
 #define ZULLANG_UTILITY_H
 
 #include <utility>
-#include <map>
-#include <string>
 #include <functional>
 
-#include <llvm/IR/Instructions.h>
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/Constant.h"
-#include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/Type.h"
-
-#include "ZulContext.h"
-#include "System.h"
 #include "Lexer.h"
 
-#define TYPE_COUNTS 4 //기본 타입의 개수
 #define ENTRY_FN_NAME "시작" //진입점 함수 이름
 #define STDIN_NAME "입"
 #define STDOUT_NAME "출"
-
-enum TypeID {
-    id_bool,
-    id_char,
-    id_int,
-    id_float,
-    id_interrupt = -10
-};
-
-extern ZulValue nullzul;
 
 template<typename T>
 struct Capture {
@@ -66,30 +45,12 @@ struct Guard {
     }
 };
 
-std::string get_type_name(int type_id);
-
-llvm::Constant *get_const_zero(llvm::Type *llvm_type, int type_id);
-
-llvm::Constant *get_const_zero(llvm::LLVMContext &context, int type_id);
-
-llvm::Type *get_llvm_type(llvm::LLVMContext &context, int type_id);
-
-bool create_cast(ZulContext &zulctx, ZulValue &target, int dest_type_id);
-
-llvm::Value *create_int_operation(ZulContext &zulctx, llvm::Value *lhs, llvm::Value *rhs, Capture<Token> &op);
-
-llvm::Value *create_float_operation(ZulContext &zulctx, llvm::Value *lhs, llvm::Value *rhs, Capture<Token> &op);
-
-bool is_cmp(Token op);
-
-bool to_boolean_expr(ZulContext &zulctx, ZulValue &expr);
+bool iscmp(Token op);
 
 bool iskor(int c);
 
 bool isnum(int c);
 
 bool iskornum(int c);
-
-std::string token_to_string(Token token); //토큰을 문자열로 출력
 
 #endif //ZULLANG_UTILITY_H

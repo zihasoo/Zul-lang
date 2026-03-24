@@ -101,17 +101,17 @@ public:
 
     std::string& get_word();
 
-    std::pair<int, int> get_token_loc();
+    std::pair<int, int> get_token_loc() const;
 
-    int get_line_index();
+    int get_line_index() const;
 
-    std::string get_line_substr(int st, int ed);
+    std::string get_line_substr(int st, int ed) const;
 
     void log_unexpected(std::string_view msg = "");
 
-    void log_token(std::string_view msg);
+    void log_token(std::string_view msg) const;
 
-    void log_token(const std::initializer_list<std::string_view>& msgs);
+    void log_token(std::initializer_list<std::string_view> msgs) const;
 
 private:
     std::string cur_line;

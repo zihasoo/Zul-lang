@@ -75,8 +75,8 @@ void run_jit(unique_ptr<LLVMContext> context, unique_ptr<Module> module) {
 }
 
 void link_stdio(LLVMContext &context, Module &module) {
-    auto buf_or_err = MemoryBuffer::getMemBuffer(StringRef((char *) zulstdio_bc, zulstdio_bc_len));
-    auto stdio_module = getLazyBitcodeModule(buf_or_err->getMemBufferRef(), context);
+    auto mem_buf = MemoryBuffer::getMemBuffer(StringRef((char *) zulstdio_bc, zulstdio_bc_len));
+    auto stdio_module = getLazyBitcodeModule(mem_buf->getMemBufferRef(), context);
     if (!stdio_module) {
         cerr << "에러: 줄랭 stdio 모듈 로드에 실패하였습니다. 컴파일러를 재설치하세요(복구 불가)\n";
         exit(1);
