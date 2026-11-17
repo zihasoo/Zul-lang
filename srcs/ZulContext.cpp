@@ -4,13 +4,7 @@
 
 #include "ZulContext.h"
 
-using llvm::Type;
-using llvm::PointerType;
-using llvm::ConstantInt;
-using llvm::ConstantFP;
-using llvm::ConstantPointerNull;
-using llvm::Value;
-using llvm::Constant;
+using namespace llvm;
 
 const ZulValue nullzul{nullptr, -1};
 

@@ -4,27 +4,7 @@
 
 #include "AST.h"
 
-using std::string;
-using std::string_view;
-using std::unique_ptr;
-using std::pair;
-using std::vector;
-using std::unordered_map;
-using std::make_unique;
-using std::make_pair;
-using std::to_string;
-using std::max;
-
-using llvm::LLVMContext;
-using llvm::ConstantInt;
-using llvm::ConstantFP;
-using llvm::ConstantPointerNull;
-using llvm::Type;
-using llvm::PointerType;
-using llvm::Value;
-using llvm::Constant;
-using llvm::BasicBlock;
-using llvm::cast;
+using namespace llvm;
 
 bool ExprAST::is_const() {
     return false;
@@ -42,19 +22,19 @@ bool LValueAST::is_lvalue() {
     return true;
 }
 
-FuncProtoAST::FuncProtoAST(string name, int return_type, vector<pair<string, int>> params, bool has_body,
+FuncProtoAST::FuncProtoAST(std::string name, int return_type, std::vector<std::pair<std::string, int>> params, bool has_body,
                            bool is_var_arg) :
         name(std::move(name)), return_type(return_type), params(std::move(params)), has_body(has_body),
         is_var_arg(is_var_arg) {}
 
-llvm::Function *FuncProtoAST::code_gen(ZulContext &zul_context) const {
-    vector<Type *> param_types;
+Function *FuncProtoAST::code_gen(ZulContext &zul_context) const {
+    std::vector<Type *> param_types;
     param_types.reserve(params.size());
     for (auto &param: params) {
         param_types.emplace_back(zul_context.id_to_type(param.second));
     }
-    auto func_type = llvm::FunctionType::get(zul_context.id_to_type(return_type), param_types, is_var_arg);
-    return llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, name, *zul_context.module);
+    auto func_type = FunctionType::get(zul_context.id_to_type(return_type), param_types, is_var_arg);
+    return Function::Create(func_type, Function::ExternalLinkage, name, *zul_context.module);
 }
 
 FuncRetAST::FuncRetAST(ASTPtr body, Capture<int> return_type) :
@@ -234,7 +214,7 @@ ZulValue BreakAST::code_gen(ZulContext &zul_context) {
     return {nullptr, ID_INTERRUPT};
 }
 
-VariableAST::VariableAST(string name) : name(std::move(name)) {}
+VariableAST::VariableAST(std::string name) : name(std::move(name)) {}
 
 ZulValue VariableAST::get_origin_value(ZulContext &zul_context) {
     if (zul_context.local_var_map.contains(name))
@@ -272,7 +252,7 @@ VariableDeclAST::VariableDeclAST(Capture<std::string> name, ZulContext &zul_cont
 
 void VariableDeclAST::register_var(ZulContext &zul_context) {
     int t = (type == -1 ? body->get_typeid(zul_context) : type);
-    zul_context.local_var_map.emplace(name.value, make_pair(nullptr, t)); //이름만 등록 해놓기
+    zul_context.local_var_map.emplace(name.value, std::make_pair(nullptr, t)); //이름만 등록 해놓기
     if (!zul_context.scope_stack.empty()) { //만약 스코프 안에 있다면
         zul_context.scope_stack.top().push_back(name.value); //가장 가까운 스코프에 변수 등록
     }
@@ -303,20 +283,20 @@ ZulValue VariableDeclAST::code_gen(ZulContext &zul_context) {
     if (ID_MAX < type && type < ID_MAX * 2) //배열 타입일 경우 포인터로 변환함
         type += ID_MAX;
     auto func = zul_context.builder.GetInsertBlock()->getParent();
-    llvm::IRBuilder<> entry_builder(&func->getEntryBlock(), func->getEntryBlock().begin());
+    IRBuilder<> entry_builder(&func->getEntryBlock(), func->getEntryBlock().begin());
     auto alloca_val = entry_builder.CreateAlloca(zul_context.id_to_type(type), nullptr, name.value);
-    zul_context.local_var_map[name.value] = make_pair(alloca_val, type);
+    zul_context.local_var_map[name.value] = std::make_pair(alloca_val, type);
 
     if (body)
         zul_context.builder.CreateStore(init_val, alloca_val);
     return {alloca_val, type};
 }
 
-VariableAssnAST::VariableAssnAST(unique_ptr<LValueAST> target, Capture<Token> op, ASTPtr body) :
+VariableAssnAST::VariableAssnAST(std::unique_ptr<LValueAST> target, Capture<Token> op, ASTPtr body) :
         target(std::move(target)), op(std::move(op)), body(std::move(body)) {}
 
 ZulValue VariableAssnAST::code_gen(ZulContext &zul_context) {
-    static unordered_map<Token, Token> assn_op_map = {
+    static std::unordered_map<Token, Token> assn_op_map = {
             {tok_mul_assn,    tok_mul},
             {tok_div_assn,    tok_div},
             {tok_mod_assn,    tok_mod},
@@ -464,7 +444,7 @@ int BinOpAST::get_typeid(ZulContext &zul_context) {
     int rtype = right->get_typeid(zul_context);
     if (ltype > ID_FLOAT || rtype > ID_FLOAT || ltype < ID_BOOL || rtype < ID_BOOL)
         return -1;
-    return max(ltype, rtype);
+    return std::max(ltype, rtype);
 }
 
 UnaryOpAST::UnaryOpAST(ASTPtr body, Capture<Token> op) : body(std::move(body)), op(std::move(op)) {}
@@ -551,7 +531,7 @@ int SubscriptAST::get_typeid(ZulContext &zul_context) {
     return target->get_typeid(zul_context) - ID_MAX;
 }
 
-FuncCallAST::FuncCallAST(FuncProtoAST &proto, vector<Capture<ASTPtr>> args)
+FuncCallAST::FuncCallAST(FuncProtoAST &proto, std::vector<Capture<ASTPtr>> args)
         : proto(proto), args(std::move(args)) {}
 
 
@@ -562,8 +542,8 @@ std::string_view FuncCallAST::get_format_str(int type_id) {
 }
 
 ZulValue FuncCallAST::handle_std_in(ZulContext &zul_context) {
-    vector<Value *> arg_values;
-    string format_str;
+    std::vector<Value *> arg_values;
+    std::string format_str;
     auto s = args.size();
     bool has_error = false;
     arg_values.reserve(args.size());
@@ -588,8 +568,8 @@ ZulValue FuncCallAST::handle_std_in(ZulContext &zul_context) {
 }
 
 ZulValue FuncCallAST::handle_std_out(ZulContext &zul_context) {
-    vector<Value *> arg_values;
-    string format_str;
+    std::vector<Value *> arg_values;
+    std::string format_str;
     auto s = args.size();
     arg_values.reserve(args.size());
     for (int i = 0; i < s; i++) {
@@ -615,7 +595,7 @@ ZulValue FuncCallAST::code_gen(ZulContext &zul_context) {
     if (proto.name == STDOUT_NAME)
         return handle_std_out(zul_context);
     auto target_func = zul_context.module->getFunction(proto.name);
-    vector<llvm::Value *> arg_values;
+    std::vector<Value *> arg_values;
     bool has_error = false;
     arg_values.reserve(args.size());
     for (int i = 0; i < args.size(); i++) {
@@ -641,7 +621,7 @@ int FuncCallAST::get_typeid(ZulContext &zul_context) {
     return proto.return_type;
 }
 
-unordered_map<int, string_view> FuncCallAST::format_str_map = {
+std::unordered_map<int, std::string_view> FuncCallAST::format_str_map = {
         {ID_BOOL,              "%u"},
         {ID_CHAR,              "%c"},
         {ID_INT,               "%lld"},
@@ -653,7 +633,7 @@ unordered_map<int, string_view> FuncCallAST::format_str_map = {
 ImmBoolAST::ImmBoolAST(bool val) : val(val) {}
 
 ZulValue ImmBoolAST::code_gen(ZulContext &zul_context) {
-    return {ConstantInt::get(*zul_context.context, llvm::APInt(1, val)), ID_BOOL};
+    return {ConstantInt::get(*zul_context.context, APInt(1, val)), ID_BOOL};
 }
 
 bool ImmBoolAST::is_const() {
@@ -667,7 +647,7 @@ int ImmBoolAST::get_typeid(ZulContext &zul_context) {
 ImmCharAST::ImmCharAST(char val) : val(val) {}
 
 ZulValue ImmCharAST::code_gen(ZulContext &zul_context) {
-    return {ConstantInt::get(*zul_context.context, llvm::APInt(8, val)), ID_CHAR};
+    return {ConstantInt::get(*zul_context.context, APInt(8, val)), ID_CHAR};
 }
 
 bool ImmCharAST::is_const() {
@@ -681,7 +661,7 @@ int ImmCharAST::get_typeid(ZulContext &zul_context) {
 ImmIntAST::ImmIntAST(long long int val) : val(val) {}
 
 ZulValue ImmIntAST::code_gen(ZulContext &zul_context) {
-    return {ConstantInt::get(*zul_context.context, llvm::APInt(64, val, true)), ID_INT};
+    return {ConstantInt::get(*zul_context.context, APInt(64, val, true)), ID_INT};
 }
 
 bool ImmIntAST::is_const() {
@@ -695,7 +675,7 @@ int ImmIntAST::get_typeid(ZulContext &zul_context) {
 ImmRealAST::ImmRealAST(double val) : val(val) {}
 
 ZulValue ImmRealAST::code_gen(ZulContext &zul_context) {
-    return {ConstantFP::get(*zul_context.context, llvm::APFloat(val)), ID_FLOAT};
+    return {ConstantFP::get(*zul_context.context, APFloat(val)), ID_FLOAT};
 }
 
 bool ImmRealAST::is_const() {
@@ -706,7 +686,7 @@ int ImmRealAST::get_typeid(ZulContext &zul_context) {
     return ID_FLOAT;
 }
 
-ImmStrAST::ImmStrAST(string val) : val(std::move(val)) {}
+ImmStrAST::ImmStrAST(std::string val) : val(std::move(val)) {}
 
 ZulValue ImmStrAST::code_gen(ZulContext &zul_context) {
     return {zul_context.builder.CreateGlobalString(val, "", 0, zul_context.module.get()), ID_CHAR + ID_MAX};

@@ -5,25 +5,17 @@
 #include "Lexer.h"
 #include "Utility.h"
 
-using std::string;
-using std::cerr;
-using std::ifstream;
-using std::pair;
-using std::initializer_list;
-using std::string_view;
-using std::unordered_map;
-
-Lexer::Lexer(const string &source_name) : source(source_name) {
+Lexer::Lexer(const std::string &source_name) : source(source_name) {
     last_word.reserve(30);
     cur_line.reserve(80);
     if (!source.is_open()) {
-        cerr << "에러: \"" << source_name << "\" 파일이 존재하지 않습니다.";
+        std::cerr << "에러: \"" << source_name << "\" 파일이 존재하지 않습니다.";
         exit(1);
     }
     advance();
 }
 
-void Lexer::log_unexpected(string_view msg) {
+void Lexer::log_unexpected(std::string_view msg) {
     if (last_char == EOF)
         log_token({"예기치 않은 EOF. ", msg});
     else if (last_word.empty())
@@ -32,7 +24,7 @@ void Lexer::log_unexpected(string_view msg) {
         log_token({"예기치 않은 토큰 \"", last_word, "\" ", msg});
 }
 
-void Lexer::log_token(string_view msg) const {
+void Lexer::log_token(std::string_view msg) const {
     System::logger.log_error(token_loc, last_word.size(), msg);
 }
 
@@ -194,11 +186,11 @@ Token Lexer::get_token() {
     return token_map[last_word];
 }
 
-string &Lexer::get_word() {
+std::string &Lexer::get_word() {
     return last_word;
 }
 
-pair<int, int> Lexer::get_token_loc() const {
+std::pair<int, int> Lexer::get_token_loc() const {
     return token_loc;
 }
 
@@ -210,7 +202,7 @@ std::string Lexer::get_line_substr(int st, int ed) const {
     return cur_line.substr(st, ed - st);
 }
 
-unordered_map<string_view, Token> Lexer::token_map =
+std::unordered_map<std::string_view, Token> Lexer::token_map =
         {{"ㅎㅇ",  tok_hi},
          {"ㄱㄱ",  tok_go},
          {"ㅇㅈ?", tok_ij},

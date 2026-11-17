@@ -17,25 +17,7 @@
 #include "Parser.h"
 #include "Zulstdio.h"
 
-using std::string;
-using std::unique_ptr;
-using std::pair;
-using std::vector;
-using std::error_code;
-using std::cerr;
-
-using llvm::raw_fd_ostream;
-using llvm::Module;
-using llvm::LLVMContext;
-using llvm::StringRef;
-using llvm::MemoryBuffer;
-using llvm::Linker;
-using llvm::InitLLVM;
-using llvm::InitializeNativeTarget;
-using llvm::InitializeNativeTargetAsmPrinter;
-using llvm::ExitOnError;
-using llvm::orc::LLJITBuilder;
-using llvm::orc::ThreadSafeModule;
+using namespace llvm;
 
 void write_module(Module *module) {
     if (auto original_main = module->getFunction("main")) {
@@ -48,7 +30,7 @@ void write_module(Module *module) {
         System::output_name = System::source_name.substr(0, dot_pos) + (System::opt_assembly ? ".ll" : ".bc");
     }
 
-    error_code EC;
+    std::error_code EC;
     raw_fd_ostream output_file{System::output_name, EC};
 
     if (System::opt_assembly) {
@@ -58,7 +40,7 @@ void write_module(Module *module) {
     }
 }
 
-void run_jit(unique_ptr<LLVMContext> context, unique_ptr<Module> module) {
+void run_jit(std::unique_ptr<LLVMContext> context, std::unique_ptr<Module> module) {
     InitializeNativeTarget();
     InitializeNativeTargetAsmPrinter();
 
@@ -66,8 +48,8 @@ void run_jit(unique_ptr<LLVMContext> context, unique_ptr<Module> module) {
 
     ExitOnErr.setBanner(System::source_name + ": ");
 
-    auto lljit = ExitOnErr(LLJITBuilder().create());
-    auto tsm = ThreadSafeModule(std::move(module), std::move(context));
+    auto lljit = ExitOnErr(orc::LLJITBuilder().create());
+    auto tsm = orc::ThreadSafeModule(std::move(module), std::move(context));
 
     ExitOnErr(lljit->addIRModule(std::move(tsm)));
 
@@ -79,14 +61,14 @@ void link_stdio(LLVMContext &context, Module &module) {
     auto mem_buf = MemoryBuffer::getMemBuffer(StringRef((char *) zulstdio_bc, zulstdio_bc_len));
     auto stdio_module = getLazyBitcodeModule(mem_buf->getMemBufferRef(), context);
     if (!stdio_module) {
-        cerr << "에러: 줄랭 stdio 모듈 로드에 실패하였습니다. 컴파일러를 재설치하세요(복구 불가)\n";
+        std::cerr << "에러: 줄랭 stdio 모듈 로드에 실패하였습니다. 컴파일러를 재설치하세요(복구 불가)\n";
         exit(1);
     }
 
     Linker linker(module);
 
     if (linker.linkInModule(std::move(stdio_module.get()))) {
-        cerr << "에러: 줄랭 stdio 모듈 링킹에 실패하였습니다. 컴파일러를 재설치하세요(복구 불가)\n";
+        std::cerr << "에러: 줄랭 stdio 모듈 링킹에 실패하였습니다. 컴파일러를 재설치하세요(복구 불가)\n";
         exit(1);
     }
 }
@@ -100,7 +82,7 @@ int main(int argc, char *argv[]) {
     Parser parser{System::source_name, System::target_triple};
     auto [context, module] = parser.parse();
 
-    if (System::logger.has_error() || llvm::verifyModule(*module, &llvm::errs()))
+    if (System::logger.has_error() || verifyModule(*module, &errs()))
         return 1;
 
     if (System::opt_compile || System::opt_assembly) {

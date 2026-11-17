@@ -4,35 +4,7 @@
 
 #include "Parser.h"
 
-using std::string;
-using std::unique_ptr;
-using std::pair;
-using std::tuple;
-using std::vector;
-using std::cerr;
-using std::stringstream;
-using std::make_unique;
-using std::make_pair;
-using std::to_string;
-
-using llvm::BranchInst;
-using llvm::ReturnInst;
-using llvm::isa;
-using llvm::cast;
-using llvm::Module;
-using llvm::LLVMContext;
-using llvm::BasicBlock;
-using llvm::Type;
-using llvm::Triple;
-using llvm::Value;
-using llvm::ArrayType;
-using llvm::PointerType;
-using llvm::GlobalVariable;
-using llvm::Function;
-using llvm::Constant;
-using llvm::ConstantInt;
-using llvm::ConstantAggregateZero;
-using llvm::sys::getProcessTriple;
+using namespace llvm;
 
 bool remove_all_pred(BasicBlock *bb) {
     if (bb->isEntryBlock())
@@ -53,14 +25,14 @@ bool remove_all_pred(BasicBlock *bb) {
     return false;
 }
 
-Parser::Parser(const string &source_name, const std::string &target_triple) : lexer(source_name) {
+Parser::Parser(const std::string &source_name, const std::string &target_triple) : lexer(source_name) {
     zul_context.module->setSourceFileName(source_name);
     zul_context.module->setTargetTriple(Triple(target_triple));
 
     auto i32_ty = Type::getInt32Ty(*zul_context.context);
 
     auto i8_ptr_ty = PointerType::getUnqual(*zul_context.context);
-    auto f_type = llvm::FunctionType::get(i32_ty, {i8_ptr_ty}, true);
+    auto f_type = FunctionType::get(i32_ty, {i8_ptr_ty}, true);
 
     Function::Create(f_type, Function::ExternalLinkage, "printf", *zul_context.module);
     Function::Create(f_type, Function::ExternalLinkage, "scanf", *zul_context.module);
@@ -68,11 +40,11 @@ Parser::Parser(const string &source_name, const std::string &target_triple) : le
     advance();
 }
 
-pair<unique_ptr<LLVMContext>, unique_ptr<Module>> Parser::parse() {
+std::pair<std::unique_ptr<LLVMContext>, std::unique_ptr<Module>> Parser::parse() {
     parse_top_level();
 
     if (!func_proto_map.contains(ENTRY_FN_NAME) || !func_proto_map[ENTRY_FN_NAME].has_body) {
-        cerr << "에러: 진입점이 정의되지 않았습니다. \"" << ENTRY_FN_NAME << "\" 함수 정의가 필요합니다\n";
+        std::cerr << "에러: 진입점이 정의되지 않았습니다. \"" << ENTRY_FN_NAME << "\" 함수 정의가 필요합니다\n";
         System::logger.set_error();
     }
 
@@ -90,8 +62,8 @@ int Parser::get_op_prec() const {
 }
 
 void Parser::parse_top_level() {
-    string name;
-    pair<int, int> name_loc;
+    std::string name;
+    std::pair<int, int> name_loc;
     while (true) {
         if (cur_tok == tok_eof)
             break;
@@ -163,7 +135,7 @@ void Parser::parse_global_var() {
             }
             auto global_var = new GlobalVariable(*zul_context.module, init_val.value->getType(), false,
                                                  GlobalVariable::ExternalLinkage, cast<Constant>(init_val.value), var_name);
-            zul_context.global_var_map.emplace(var_name, make_pair(global_var, type_id));
+            zul_context.global_var_map.emplace(var_name, std::make_pair(global_var, type_id));
             return;
         }
         //선언만
@@ -172,7 +144,7 @@ void Parser::parse_global_var() {
             //GlobalVariable 소멸자 호출되면 dropAllReferences 때문에 에러남. 그냥 동적 할당 해야됨
             auto global_var = new GlobalVariable(*zul_context.module, init_val->getType(), false, GlobalVariable::ExternalLinkage,
                                                  init_val, var_name);
-            zul_context.global_var_map.emplace(var_name, make_pair(global_var, type_id));
+            zul_context.global_var_map.emplace(var_name, std::make_pair(global_var, type_id));
             return;
         }
         //배열인 경우
@@ -184,7 +156,7 @@ void Parser::parse_global_var() {
                     auto arr_type = ArrayType::get(zul_context.id_to_type(type_id), arr_size);
                     auto global_var = new GlobalVariable(*zul_context.module, arr_type, false,
                         GlobalVariable::ExternalLinkage, ConstantAggregateZero::get(arr_type), var_name);
-                    zul_context.global_var_map.emplace(var_name, make_pair(global_var, type_id));
+                    zul_context.global_var_map.emplace(var_name, std::make_pair(global_var, type_id));
                     return;
                 }
             }
@@ -208,14 +180,14 @@ void Parser::parse_global_var() {
             global_var = new GlobalVariable(*zul_context.module, init_val.value->getType(), false,
                                             GlobalVariable::ExternalLinkage, cast<Constant>(init_val.value), var_name);
         }
-        zul_context.global_var_map.emplace(var_name, make_pair(global_var, init_val.id));
+        zul_context.global_var_map.emplace(var_name, std::make_pair(global_var, init_val.id));
     } else {
         lexer.log_unexpected();
     }
 }
 
-tuple<vector<pair<string, int>>, bool, bool> Parser::parse_parameter() {
-    vector<pair<string, int>> params;
+std::tuple<std::vector<std::pair<std::string, int>>, bool, bool> Parser::parse_parameter() {
+    std::vector<std::pair<std::string, int>> params;
     bool err = false;
     if (cur_tok == tok_rpar) {
         advance();
@@ -255,7 +227,7 @@ tuple<vector<pair<string, int>>, bool, bool> Parser::parse_parameter() {
             advance();
             auto type = parse_type(true);
             params.emplace_back(name, type.first);
-            zul_context.local_var_map.emplace(name, make_pair(nullptr, type.first));
+            zul_context.local_var_map.emplace(name, std::make_pair(nullptr, type.first));
         }
         if (cur_tok == tok_rpar)
             break;
@@ -273,7 +245,7 @@ tuple<vector<pair<string, int>>, bool, bool> Parser::parse_parameter() {
     return {params, false, err};
 }
 
-void Parser::parse_func_def(string &func_name, pair<int, int> name_loc, int target_level) {
+void Parser::parse_func_def(std::string &func_name, std::pair<int, int> name_loc, int target_level) {
 //---------------------------------전방 선언된 함수인지 확인---------------------------------
     bool exist = false;
     if (func_proto_map.contains(func_name)) {
@@ -376,8 +348,8 @@ void Parser::parse_func_def(string &func_name, pair<int, int> name_loc, int targ
     }
 }
 
-pair<vector<ASTPtr>, int> Parser::parse_block_body(int target_level) {
-    vector<ASTPtr> body;
+std::pair<std::vector<ASTPtr>, int> Parser::parse_block_body(int target_level) {
+    std::vector<ASTPtr> body;
     int start_level = 0;
     while (true) {
         if (cur_tok == tok_newline) {
@@ -424,21 +396,21 @@ std::pair<ASTPtr, int> Parser::parse_line(int start_level, int target_level) {
         auto cap = make_capture(cur_ret_type, lexer);
         advance();
         auto body = parse_expr();
-        ret = make_unique<FuncRetAST>(std::move(body), std::move(cap));
+        ret = std::make_unique<FuncRetAST>(std::move(body), std::move(cap));
     } else if (cur_tok == tok_tt) { //ㅌㅌ
         if (!zul_context.in_loop) {
             lexer.log_token("ㅌㅌ문을 사용할 수 없습니다. 루프가 아닙니다");
             return {nullptr, -1};
         }
         advance();
-        ret = make_unique<ContinueAST>();
+        ret = std::make_unique<ContinueAST>();
     } else if (cur_tok == tok_sg) { //ㅅㄱ
         if (!zul_context.in_loop) {
             lexer.log_token("ㅅㄱ문을 사용할 수 없습니다. 루프가 아닙니다");
             return {nullptr, -1};
         }
         advance();
-        ret = make_unique<BreakAST>();
+        ret = std::make_unique<BreakAST>();
     } else {
         ret = parse_expr_start();
     }
@@ -498,9 +470,9 @@ ASTPtr Parser::parse_local_var(std::unique_ptr<LValueAST> lvalue, Capture<std::s
             ASTPtr body = parse_expr();
             if (!body)
                 return nullptr;
-            return make_unique<VariableDeclAST>(std::move(name_cap), zul_context, type.first, std::move(body));
+            return std::make_unique<VariableDeclAST>(std::move(name_cap), zul_context, type.first, std::move(body));
         }
-        return make_unique<VariableDeclAST>(std::move(name_cap), zul_context, type.first);
+        return std::make_unique<VariableDeclAST>(std::move(name_cap), zul_context, type.first);
     }
     //자동추론 + 초기화
     advance();
@@ -510,12 +482,12 @@ ASTPtr Parser::parse_local_var(std::unique_ptr<LValueAST> lvalue, Capture<std::s
     }
     if (!is_exist) {
         if (op_cap.value == tok_assn)
-            return make_unique<VariableDeclAST>(std::move(name_cap), zul_context, std::move(body));
+            return std::make_unique<VariableDeclAST>(std::move(name_cap), zul_context, std::move(body));
 
         System::logger.log_error(name_cap.loc, name_cap.word_size, {"\"", name_cap.value, "\" 는 존재하지 않는 변수입니다"});
         return nullptr;
     }
-    return make_unique<VariableAssnAST>(std::move(lvalue), std::move(op_cap), std::move(body));
+    return std::make_unique<VariableAssnAST>(std::move(lvalue), std::move(op_cap), std::move(body));
 }
 
 ASTPtr Parser::parse_expr() {
@@ -564,10 +536,10 @@ ASTPtr Parser::parse_primary() {
             return parse_num();
         case tok_true:
             advance();
-            return make_unique<ImmBoolAST>(true);
+            return std::make_unique<ImmBoolAST>(true);
         case tok_false:
             advance();
-            return make_unique<ImmBoolAST>(false);
+            return std::make_unique<ImmBoolAST>(false);
         case tok_lpar:
             return parse_par();
         case tok_dquotes:
@@ -584,7 +556,7 @@ ASTPtr Parser::parse_primary() {
     }
 }
 
-pair<ASTPtr, bool> Parser::parse_if_header() {
+std::pair<ASTPtr, bool> Parser::parse_if_header() {
     bool error = false;
     ASTPtr cond = parse_expr();
     if (!cond) {
@@ -649,7 +621,7 @@ std::pair<ASTPtr, int> Parser::parse_if(int target_level) {
     }
     if (error)
         return {nullptr, stop_level};
-    return {make_unique<IfAST>(std::move(if_pair), std::move(elif_pair_list), std::move(else_body)), stop_level};
+    return {std::make_unique<IfAST>(std::move(if_pair), std::move(elif_pair_list), std::move(else_body)), stop_level};
 }
 
 std::pair<ASTPtr, int> Parser::parse_for(int target_level) {
@@ -686,7 +658,7 @@ std::pair<ASTPtr, int> Parser::parse_for(int target_level) {
         lexer.log_token("ㄱㄱ문의 몸체가 정의되지 않았습니다");
         return {nullptr, stop_level};
     }
-    return {make_unique<LoopAST>(std::move(init_for), std::move(test_for), std::move(update_for),
+    return {std::make_unique<LoopAST>(std::move(init_for), std::move(test_for), std::move(update_for),
                                  std::move(for_body)), stop_level};
 }
 
@@ -699,24 +671,24 @@ ASTPtr Parser::parse_identifier() {
     return parse_lvalue(name, loc);
 }
 
-ASTPtr Parser::parse_func_call(string &name, pair<int, int> name_loc) {
+ASTPtr Parser::parse_func_call(std::string &name, std::pair<int, int> name_loc) {
     if (!func_proto_map.contains(name)) {
         System::logger.log_error(name_loc, name.size(), {"\"", name, "\" 는 존재하지 않는 함수입니다"});
         return nullptr;
     }
     advance(); //(
-    vector<Capture<ASTPtr>> args;
+    std::vector<Capture<ASTPtr>> args;
     while (true) {
         if (cur_tok == tok_rpar) {
             auto &proto = func_proto_map[name];
             auto param_cnt = proto.params.size();
             if (!proto.is_var_arg && param_cnt != args.size()) {
-                lexer.log_token({"인자 개수가 맞지 않습니다. ", "\"", name, "\" 함수의 인자 개수는 ", to_string(param_cnt), "개 입니다."});
+                lexer.log_token({"인자 개수가 맞지 않습니다. ", "\"", name, "\" 함수의 인자 개수는 ", std::to_string(param_cnt), "개 입니다."});
                 advance();
                 return nullptr;
             }
             advance(); // )
-            return make_unique<FuncCallAST>(proto, std::move(args));
+            return std::make_unique<FuncCallAST>(proto, std::move(args));
         }
         auto arg_start_loc = lexer.get_token_loc();
         auto arg = parse_expr();
@@ -733,7 +705,7 @@ ASTPtr Parser::parse_func_call(string &name, pair<int, int> name_loc) {
     }
 }
 
-unique_ptr<LValueAST> Parser::parse_lvalue(string &name, pair<int, int> name_loc, bool check_exist) {
+std::unique_ptr<LValueAST> Parser::parse_lvalue(std::string &name, std::pair<int, int> name_loc, bool check_exist) {
     if (check_exist && !zul_context.is_declared(name)) {
         System::logger.log_error(name_loc, name.size(), {"\"", name, "\" 는 존재하지 않는 변수입니다"});
         if (cur_tok == tok_lsqbrk)
@@ -746,10 +718,10 @@ unique_ptr<LValueAST> Parser::parse_lvalue(string &name, pair<int, int> name_loc
         auto index = parse_subscript();
         if (!index)
             return nullptr;
-        return make_unique<SubscriptAST>(make_unique<VariableAST>(name),
+        return std::make_unique<SubscriptAST>(std::make_unique<VariableAST>(name),
                                          Capture<ASTPtr>(std::move(index), loc, size));
     }
-    return make_unique<VariableAST>(name);
+    return std::make_unique<VariableAST>(name);
 }
 
 ASTPtr Parser::parse_subscript() {
@@ -766,8 +738,8 @@ ASTPtr Parser::parse_subscript() {
     return ret;
 }
 
-pair<int, ASTPtr> Parser::parse_type(bool no_arr) {
-    pair<int, ASTPtr> null{-1, nullptr};
+std::pair<int, ASTPtr> Parser::parse_type(bool no_arr) {
+    std::pair<int, ASTPtr> null{-1, nullptr};
     if (cur_tok != tok_identifier) {
         lexer.log_unexpected("타입 이름이 와야 합니다");
         advance();
@@ -811,7 +783,7 @@ ASTPtr Parser::parse_unary_op() {
     auto body = parse_primary();
     if (!body)
         return nullptr;
-    return make_unique<UnaryOpAST>(std::move(body), std::move(op_cap));
+    return std::make_unique<UnaryOpAST>(std::move(body), std::move(op_cap));
 }
 
 ASTPtr Parser::parse_par() {
@@ -837,7 +809,7 @@ ASTPtr Parser::parse_num() {
             lexer.log_token("잘못된 수 리터럴입니다. 오버플로우가 발생했습니다");
             return nullptr;
         }
-        return make_unique<ImmIntAST>(result);
+        return std::make_unique<ImmIntAST>(result);
     }
 
     auto result = strtod(num_word.c_str(), &end_ptr);
@@ -845,7 +817,7 @@ ASTPtr Parser::parse_num() {
         lexer.log_token("잘못된 실수 리터럴입니다");
         return nullptr;
     }
-    return make_unique<ImmRealAST>(result);
+    return std::make_unique<ImmRealAST>(result);
 }
 
 ASTPtr Parser::parse_str() {
@@ -859,7 +831,7 @@ ASTPtr Parser::parse_str() {
     } while (cur_tok != tok_dquotes);
     int ed = lexer.get_line_index();
     auto str = lexer.get_line_substr(st, ed);
-    stringstream ss;
+    std::stringstream ss;
     for (int i = 0; i < str.size(); ++i) {
         if (str[i] == '\\' && i + 1 < str.size() && str[i + 1] == 'n') {
             ss << '\n';
@@ -869,7 +841,7 @@ ASTPtr Parser::parse_str() {
         }
     }
     advance();
-    return make_unique<ImmStrAST>(ss.str());
+    return std::make_unique<ImmStrAST>(ss.str());
 }
 
 ASTPtr Parser::parse_char() {
@@ -894,10 +866,10 @@ ASTPtr Parser::parse_char() {
         return nullptr;
     }
     advance();
-    return make_unique<ImmCharAST>(str[0]);
+    return std::make_unique<ImmCharAST>(str[0]);
 }
 
-void Parser::create_func(FuncProtoAST &proto, const vector<ASTPtr> &body, std::pair<int, int> name_loc, bool exist) {
+void Parser::create_func(FuncProtoAST &proto, const std::vector<ASTPtr> &body, std::pair<int, int> name_loc, bool exist) {
     Function *llvm_func;
     if (exist) {
         llvm_func = zul_context.module->getFunction(proto.name);
@@ -906,7 +878,7 @@ void Parser::create_func(FuncProtoAST &proto, const vector<ASTPtr> &body, std::p
     }
     auto entry_block = BasicBlock::Create(*zul_context.context, "entry", llvm_func);
     zul_context.builder.SetInsertPoint(entry_block);
-    llvm::IRBuilder<> entry_builder(entry_block, entry_block->begin());
+    IRBuilder<> entry_builder(entry_block, entry_block->begin());
 
     if (zul_context.ret_count > 1) {
         if (proto.return_type != -1)
@@ -918,7 +890,7 @@ void Parser::create_func(FuncProtoAST &proto, const vector<ASTPtr> &body, std::p
     for (auto &arg: llvm_func->args()) {
         auto alloca_val = entry_builder.CreateAlloca(arg.getType(), nullptr, proto.params[i].first);
         zul_context.builder.CreateStore(&arg, alloca_val);
-        zul_context.local_var_map[proto.params[i].first] = make_pair(alloca_val, proto.params[i].second);
+        zul_context.local_var_map[proto.params[i].first] = std::make_pair(alloca_val, proto.params[i].second);
         i++;
     }
 

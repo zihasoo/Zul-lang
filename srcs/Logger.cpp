@@ -4,12 +4,6 @@
 
 #include "Logger.h"
 
-using std::pair;
-using std::string;
-using std::unordered_map;
-using std::string_view;
-using std::clog;
-
 Logger::Logger() : error_flag(false) {
     line_map.reserve(70);
 }
@@ -18,14 +12,14 @@ Logger::~Logger() {
     flush();
 }
 
-void Logger::log_error(pair<int, int> loc, unsigned word_size, string_view msg) {
-    buffer.emplace(loc, word_size, string(msg));
+void Logger::log_error(std::pair<int, int> loc, unsigned word_size, std::string_view msg) {
+    buffer.emplace(loc, word_size, std::string(msg));
     error_flag = true;
 }
 
-void Logger::log_error(pair<int, int> loc, unsigned word_size, std::initializer_list<std::string_view> msgs) {
+void Logger::log_error(std::pair<int, int> loc, unsigned word_size, std::initializer_list<std::string_view> msgs) {
     //매모리의 반복 재할당을 막기 위해 initializer_list로 받고 한 번에 할당
-    string str;
+    std::string str;
     unsigned size = 0;
     for (const auto &x: msgs) {
         size += x.size();
@@ -38,7 +32,7 @@ void Logger::log_error(pair<int, int> loc, unsigned word_size, std::initializer_
     error_flag = true;
 }
 
-void Logger::register_line(int line_num, string &&line) {
+void Logger::register_line(int line_num, std::string &&line) {
     line_map.emplace(line_num, std::move(line));
 }
 
@@ -52,8 +46,8 @@ int Logger::get_byte_count(int c) {
     return 1;
 }
 
-string Logger::highlight(std::string_view str, int col, unsigned word_size) {
-    string ret;
+std::string Logger::highlight(std::string_view str, int col, unsigned word_size) {
+    std::string ret;
     ret.reserve(str.size());
     int idx = 0;
     for (int i = 0; i < col; ++i) {
@@ -100,9 +94,9 @@ string Logger::highlight(std::string_view str, int col, unsigned word_size) {
 void Logger::flush() {
     while (!buffer.empty()) {
         auto &log = buffer.top();
-        clog << source_name << ' ' << log.row << ':' << log.col << ": 에러: " << log.msg << '\n';
-        clog.width(5);
-        clog << log.row << " | " << line_map[log.row]
+        std::clog << source_name << ' ' << log.row << ':' << log.col << ": 에러: " << log.msg << '\n';
+        std::clog.width(5);
+        std::clog << log.row << " | " << line_map[log.row]
              << "\n      | " << highlight(line_map[log.row], log.col - 1, log.word_size) << '\n';
         buffer.pop();
     }
@@ -117,6 +111,6 @@ bool Logger::has_error() const {
     return error_flag;
 }
 
-void Logger::set_source_name(const string &name) {
+void Logger::set_source_name(const std::string &name) {
     source_name = name;
 }
