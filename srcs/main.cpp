@@ -11,6 +11,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/IR/Verifier.h"
 
 #include "System.h"
 #include "Parser.h"
@@ -99,7 +100,7 @@ int main(int argc, char *argv[]) {
     Parser parser{System::source_name, System::target_triple};
     auto [context, module] = parser.parse();
 
-    if (System::logger.has_error())
+    if (System::logger.has_error() || llvm::verifyModule(*module, &llvm::errs()))
         return 1;
 
     if (System::opt_compile || System::opt_assembly) {

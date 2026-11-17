@@ -572,7 +572,7 @@ ZulValue FuncCallAST::handle_std_in(ZulContext &zul_context) {
             System::logger.log_error(args[i].loc, args[i].word_size, {"\"", STDIN_NAME, "\" 함수에는 좌측값만 올 수 있습니다"});
             has_error = true;
         }
-        auto arg = cast<LValueAST>(args[i].value.get())->get_origin_value(zul_context);
+        auto arg = static_cast<LValueAST*>(args[i].value.get())->get_origin_value(zul_context);
         if (!arg.value)
             return nullzul;
 

@@ -928,8 +928,7 @@ void Parser::create_func(FuncProtoAST &proto, const vector<ASTPtr> &body, std::p
     }
 
     auto cur_block = zul_context.builder.GetInsertBlock();
-    if (zul_context.ret_count == 0 || cur_block->empty() ||
-        (!isa<BranchInst>(cur_block->back()) && !isa<ReturnInst>(cur_block->back()))) {
+    if (zul_context.ret_count == 0 || !cur_block->hasTerminator()) {
         if (proto.name == ENTRY_FN_NAME) {
             if (zul_context.ret_count > 1)
                 zul_context.builder.CreateBr(zul_context.return_block);
