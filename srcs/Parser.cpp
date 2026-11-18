@@ -501,7 +501,10 @@ ASTPtr Parser::parse_bin_op(int prev_prec, ASTPtr left) {
     while (true) {
         int cur_prec = get_op_prec();
 
-        if (cur_prec < prev_prec) //연산자가 아니면 자연스럽게 리턴함
+        // 이전 우선순위보다 현재 우선순위가 낮은 경우 부모쪽에서 먼저 처리하도록 리턴함
+        // 같은 우선순위여도 사칙연산은 좌결합이라 부모가 먼저 처리해야 함
+        // 이 때문에 아래 525행에서 "cur_prec + 1"을 함으로써 항상 prev가 우선순위가 더 높게 만들어줌
+        if (prev_prec > cur_prec)
             return left;
         if (cur_prec == op_prec_map[tok_assn]) {
             lexer.log_token("하나의 식에는 하나의 대입 연산자만 사용할 수 있습니다");
@@ -519,7 +522,7 @@ ASTPtr Parser::parse_bin_op(int prev_prec, ASTPtr left) {
 
         int next_prec = get_op_prec();
         if (cur_prec < next_prec) {
-            right = parse_bin_op(cur_prec, std::move(right));
+            right = parse_bin_op(cur_prec + 1, std::move(right));
             if (!right)
                 return nullptr;
         }
