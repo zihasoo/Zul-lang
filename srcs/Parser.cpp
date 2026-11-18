@@ -799,12 +799,13 @@ ASTPtr Parser::parse_par() {
 }
 
 ASTPtr Parser::parse_num() {
-    auto num_word = lexer.get_word();
+    const std::string num_word = lexer.get_word();
     char *end_ptr;
-    Guard g{[this]() { this->advance(); }};
+    Guard g{[this] { advance(); }};
 
     if (cur_tok == tok_int) {
-        auto result = strtoll(num_word.c_str(), &end_ptr, 10);
+        errno = 0;
+        long long result = strtoll(num_word.c_str(), &end_ptr, 10);
         if (errno != 0) {
             lexer.log_token("잘못된 수 리터럴입니다. 오버플로우가 발생했습니다");
             return nullptr;
@@ -812,7 +813,8 @@ ASTPtr Parser::parse_num() {
         return std::make_unique<ImmIntAST>(result);
     }
 
-    auto result = strtod(num_word.c_str(), &end_ptr);
+    errno = 0;
+    double result = strtod(num_word.c_str(), &end_ptr);
     if (errno != 0) {
         lexer.log_token("잘못된 실수 리터럴입니다");
         return nullptr;

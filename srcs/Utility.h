@@ -6,7 +6,6 @@
 #define ZULLANG_UTILITY_H
 
 #include <utility>
-#include <functional>
 
 #include "Lexer.h"
 
@@ -22,12 +21,6 @@ struct Capture {
 
     Capture(T value, std::pair<int, int> loc, unsigned word_size) :
             value(std::move(value)), loc(loc), word_size(word_size) {}
-
-    Capture(Capture<T> &&other) noexcept {
-        value = std::move(other.value);
-        loc = std::move(other.loc);
-        word_size = other.word_size;
-    }
 };
 
 template<typename T>
@@ -35,14 +28,15 @@ Capture<T> make_capture(T value, Lexer &lexer) {
     return Capture(std::move(value), lexer.get_token_loc(), lexer.get_word().size());
 }
 
-struct Guard {
-    const std::function<void()> target;
+template <typename F>
+class [[nodiscard]] Guard {
+    F f;
 
-    explicit Guard(std::function<void()> target) : target(std::move(target)) {}
-
-    ~Guard() {
-        target();
-    }
+public:
+    explicit Guard(F func) : f(std::move(func)) {}
+    Guard(const Guard &) = delete;
+    Guard &operator=(const Guard &) = delete;
+    ~Guard() { f(); }
 };
 
 bool iscmp(Token op);
