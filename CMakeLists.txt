@@ -14,3 +14,6 @@ add_subdirectory(./srcs)
 llvm_map_components_to_libnames(llvm_libs support core irreader orcjit x86codegen)
 
 target_link_libraries(zul ${llvm_libs})
+
+enable_testing()
+add_subdirectory(./tests)

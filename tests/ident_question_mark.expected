@@ -1,0 +1,7 @@
+ident_question_mark.zul 3:5: 에러: "변" 는 존재하지 않는 변수입니다
+    3 |     변?수 = 3
+      |     ^~
+ident_question_mark.zul 3:6: 에러: 예기치 않은 토큰 "?" 
+    3 |     변?수 = 3
+      |     　^
+종료 코드: 1

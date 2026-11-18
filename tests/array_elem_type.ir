@@ -1,0 +1,3 @@
+@nums = global [10 x i64]
+@text = global [50 x i8]
+@reals = global [4 x double]
